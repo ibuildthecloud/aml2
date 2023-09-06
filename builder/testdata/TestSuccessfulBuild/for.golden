@@ -1,0 +1,41 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.Embedded{Expression: &eval.MergeObjectArray{
+		Array: &eval.For{
+			Value: eval.Value{
+				Value: &value.String{String: "x"},
+			},
+			List: &eval.Lookup{
+				Pos: eval.Position{
+					Filename: "for.acorn",
+					Offset:   9,
+					Line:     1,
+					Column:   10,
+				},
+				Key: "list",
+			},
+			Body: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
+				Key: eval.Key{Value: eval.Value{
+					Value: &value.String{String: "a"},
+				}},
+				Value: eval.Value{Value: value.Number("1")},
+			}}},
+		},
+	}},
+	&eval.Embedded{Expression: &eval.MergeObjectArray{Array: &eval.For{
+		Key:   eval.Value{Value: &value.String{String: "i"}},
+		Value: eval.Value{Value: &value.String{String: "y"}},
+		List: &eval.Lookup{
+			Pos: eval.Position{
+				Filename: "for.acorn",
+				Offset:   36,
+				Line:     4,
+				Column:   13,
+			},
+			Key: "list2",
+		},
+		Body: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
+			Key:   eval.Key{Value: eval.Value{Value: &value.String{String: "b"}}},
+			Value: eval.Value{Value: value.Number("2")},
+		}}},
+	}}},
+}}

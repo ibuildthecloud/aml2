@@ -1,0 +1,36 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.KeyValue{
+		Key: eval.Key{
+			Value: eval.Value{Value: &value.String{
+				String: "a",
+			}},
+		},
+		Value: eval.Value{Value: value.Number("1")},
+	},
+	&eval.KeyValue{
+		Key: eval.Key{Value: eval.Value{Value: &value.String{String: "b"}}},
+		Value: &eval.Interpolation{Parts: []interface{}{
+			`"\nx`,
+			&eval.Lookup{
+				Pos: eval.Position{
+					Filename: "stringcomp.acorn",
+					Offset:   14,
+					Line:     2,
+					Column:   10,
+				},
+				Key: "a",
+			},
+			"y",
+			&eval.Lookup{
+				Pos: eval.Position{
+					Filename: "stringcomp.acorn",
+					Offset:   19,
+					Line:     2,
+					Column:   15,
+				},
+				Key: "a",
+			},
+			`z"`,
+		}},
+	},
+}}

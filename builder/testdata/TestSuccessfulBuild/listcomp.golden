@@ -1,0 +1,29 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.Embedded{Expression: &eval.Array{
+		Items: []eval.Expression{
+			&eval.For{
+				Value: eval.Value{Value: &value.String{
+					String: "x",
+				}},
+				List: &eval.Lookup{
+					Pos: eval.Position{
+						Filename: "listcomp.acorn",
+						Offset:   10,
+						Line:     1,
+						Column:   11,
+					},
+					Key: "list",
+				},
+				Body: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
+					Key: eval.Key{
+						Value: eval.Value{Value: &value.String{
+							String: "x",
+						}},
+					},
+					Value: eval.Value{Value: value.Number("1")},
+				}}},
+			},
+			eval.Value{Value: value.Number("2")},
+		},
+	}},
+}}

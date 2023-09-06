@@ -1,0 +1,37 @@
+package builder
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/acorn-io/aml/parser"
+	"github.com/hexops/autogold/v2"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSuccessfulBuild(t *testing.T) {
+	dir := fmt.Sprintf("testdata/%s", t.Name())
+	files, err := os.ReadDir(dir)
+	require.Nil(t, err)
+
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".acorn") {
+			continue
+		}
+		t.Run(strings.TrimSuffix(file.Name(), ".acorn"), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
+			require.NoError(t, err)
+
+			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.ParseComments, parser.AllowFunc)
+			require.NoError(t, err)
+
+			result, err := Build(ast)
+			require.NoError(t, err)
+			autogold.ExpectFile(t, result)
+		})
+	}
+}

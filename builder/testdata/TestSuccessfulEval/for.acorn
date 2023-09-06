@@ -1,0 +1,11 @@
+a: 1
+// add 2 add 3
+for x in [2, 3] {
+    a: a + x
+}
+// add 1, add 2
+for i, x in ["x", "y"] {
+    a: a + i + 1
+}
+// should be 9
+b: a

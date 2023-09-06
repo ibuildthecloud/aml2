@@ -1,0 +1,11 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.Embedded{Expression: &eval.Struct{
+		Fields: []eval.Field{&eval.KeyValue{
+			Local: true,
+			Key: eval.Key{Value: eval.Value{
+				Value: &value.String{String: "a"},
+			}},
+			Value: eval.Value{Value: value.Number("1")},
+		}},
+	}},
+}}

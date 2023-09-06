@@ -1,0 +1,28 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.KeyValue{
+		Key: eval.Key{
+			Value: eval.Value{Value: &value.String{
+				String: "y",
+			}},
+		},
+		Value: eval.Value{Value: value.Number("1")},
+	},
+	&eval.KeyValue{
+		Key: eval.Key{Value: eval.Value{Value: &value.String{String: "z"}}},
+		Value: &eval.Interpolation{Parts: []interface{}{
+			`"""
+asfd `,
+			&eval.Lookup{
+				Pos: eval.Position{
+					Filename: "multilinestring.acorn",
+					Offset:   19,
+					Line:     3,
+					Column:   8,
+				},
+				Key: "y",
+			},
+			`
+ fff """`,
+		}},
+	},
+}}

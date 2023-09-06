@@ -1,0 +1,46 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.KeyValue{
+		Key: eval.Key{
+			Value: eval.Value{Value: &value.String{
+				String: "x",
+			}},
+		},
+		Value: &eval.Call{
+			Pos: eval.Position{
+				Filename: "func.acorn",
+				Offset:   4,
+				Line:     1,
+				Column:   5,
+			},
+			Func: &eval.Lookup{
+				Pos: eval.Position{
+					Filename: "func.acorn",
+					Offset:   3,
+					Line:     1,
+					Column:   4,
+				},
+				Key: "x",
+			},
+			Args: []eval.Expression{
+				&eval.Lookup{
+					Pos: eval.Position{
+						Filename: "func.acorn",
+						Offset:   5,
+						Line:     1,
+						Column:   6,
+					},
+					Key: "a",
+				},
+				&eval.Lookup{
+					Pos: eval.Position{
+						Filename: "func.acorn",
+						Offset:   7,
+						Line:     1,
+						Column:   8,
+					},
+					Key: "c",
+				},
+			},
+		},
+	},
+}}

@@ -1,0 +1,368 @@
+package value
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
+func NewValue(v any) Value {
+	if v == nil {
+		return NewNull()
+	}
+	switch x := v.(type) {
+	case Value:
+		return x
+	case json.Number:
+		return Number(x)
+	case int:
+		return Number(strconv.Itoa(x))
+	case int8:
+		return Number(strconv.Itoa(int(x)))
+	case int32:
+		return Number(strconv.Itoa(int(x)))
+	case int64:
+		return Number(strconv.Itoa(int(x)))
+	case float32:
+		return Number(strconv.FormatFloat(float64(x), 'f', -1, 64))
+	case float64:
+		return Number(strconv.FormatFloat(x, 'f', -1, 64))
+	case string:
+		return &String{
+			String: x,
+		}
+	case bool:
+		return &Boolean{
+			Boolean: x,
+		}
+	case map[string]any:
+		return NewObject(x)
+	case []any:
+		return NewArray(x)
+	default:
+		panic(fmt.Sprintf("invalid value: %T", v))
+	}
+}
+
+func ToKind(v Value, kind Kind) (any, error) {
+	if v == nil {
+		return "", fmt.Errorf("expected %s but got nil", kind)
+	}
+	if v.Kind() != kind {
+		return "", fmt.Errorf("expected %s but got kind %s", kind, v.Kind())
+	}
+	return v.NativeValue(), nil
+}
+
+func ToValueArray(v Value) ([]Value, error) {
+	arrayValue, ok := v.(interface {
+		ToValues() []Value
+	})
+	if ok {
+		return arrayValue.ToValues(), nil
+	}
+	array, err := ToArray(v)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Value, 0, len(array))
+	for _, item := range array {
+		result = append(result, NewValue(item))
+	}
+
+	return result, nil
+}
+
+func ToArray(v Value) ([]any, error) {
+	ret, err := ToKind(v, ArrayKind)
+	if err != nil {
+		return nil, err
+	}
+	return ret.([]any), nil
+}
+
+func ToString(v Value) (string, error) {
+	ret, err := ToKind(v, StringKind)
+	if err != nil {
+		return "", err
+	}
+	return ret.(string), nil
+}
+
+type ToInter interface {
+	ToInt() (int64, error)
+}
+
+func ToInt(v Value) (int64, error) {
+	if toInt, ok := v.(ToInter); ok {
+		return toInt.ToInt()
+	}
+	return 0, fmt.Errorf("value kind %s can not be converted to an int", v.Kind())
+}
+
+type ToFloater interface {
+	ToFloat() (float64, error)
+}
+
+func ToFloat(v Value) (float64, error) {
+	if toInt, ok := v.(ToFloater); ok {
+		return toInt.ToFloat()
+	}
+	return 0, fmt.Errorf("value kind %s can not be converted to a float", v.Kind())
+}
+
+type LookupValue interface {
+	LookupValue(key string) (Value, bool, error)
+}
+
+func Lookup(left Value, key string) (Value, bool, error) {
+	adder, ok := left.(LookupValue)
+	if ok {
+		return adder.LookupValue(key)
+	}
+	return nil, false, fmt.Errorf("value kind %s does not support lookup operation", left.Kind())
+}
+
+type Indexer interface {
+	Index(key int64) (Value, bool, error)
+}
+
+func Index(left Value, key int64) (Value, bool, error) {
+	if index, ok := left.(Indexer); ok {
+		return index.Index(key)
+	}
+	return nil, false, fmt.Errorf("value kind %s does not support index operation", left.Kind())
+}
+
+type Lener interface {
+	Len() (int64, error)
+}
+
+func Len(left Value) (int64, error) {
+	if index, ok := left.(Lener); ok {
+		return index.Len()
+	}
+	return 0, fmt.Errorf("value kind %s does not support len operation", left.Kind())
+}
+
+type Slicer interface {
+	Slice(start, end int64) (Value, bool, error)
+}
+
+func Slice(left Value, start, end int64) (Value, bool, error) {
+	if index, ok := left.(Slicer); ok {
+		return index.Slice(start, end)
+	}
+	return nil, false, fmt.Errorf("value kind %s does not support slice operation", left.Kind())
+}
+
+func ToBool(v Value) (bool, error) {
+	ret, err := ToKind(v, BoolKind)
+	if err != nil {
+		return false, err
+	}
+	return ret.(bool), nil
+}
+
+func Unary(op string, val Value) (Value, error) {
+	switch op {
+	case "+", "-":
+		return Binary(op, NewValue(0), val)
+	case "!":
+		b, err := ToBool(val)
+		if err != nil {
+			return nil, err
+		}
+		return NewValue(!b), nil
+	default:
+		return nil, fmt.Errorf("unsupported unary operator %s", op)
+	}
+}
+
+func Binary(op string, left, right Value) (Value, error) {
+	switch op {
+	case "+":
+		return Add(left, right)
+	case "-":
+		return Sub(left, right)
+	case "*":
+		return Mul(left, right)
+	case "/":
+		return Div(left, right)
+	case "&&":
+		return And(left, right)
+	case "||":
+		return Or(left, right)
+	case "<":
+		return Lt(left, right)
+	case "<=":
+		return Le(left, right)
+	case ">":
+		return Gt(left, right)
+	case ">=":
+		return Ge(left, right)
+	case "==":
+		return Eq(left, right)
+	case "!=":
+		return Ne(left, right)
+	default:
+		return nil, fmt.Errorf("unsupported operator %s", op)
+	}
+}
+
+type Adder interface {
+	Add(right Value) (Value, error)
+}
+
+func Add(left, right Value) (Value, error) {
+	adder, ok := left.(Adder)
+	if ok {
+		return adder.Add(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support + operation", left.Kind())
+}
+
+type Suber interface {
+	Sub(right Value) (Value, error)
+}
+
+func Sub(left, right Value) (Value, error) {
+	adder, ok := left.(Suber)
+	if ok {
+		return adder.Sub(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support - operation", left.Kind())
+}
+
+type Muler interface {
+	Mul(right Value) (Value, error)
+}
+
+func Mul(left, right Value) (Value, error) {
+	adder, ok := left.(Muler)
+	if ok {
+		return adder.Mul(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support * operation", left.Kind())
+}
+
+type Diver interface {
+	Div(right Value) (Value, error)
+}
+
+func Div(left, right Value) (Value, error) {
+	adder, ok := left.(Diver)
+	if ok {
+		return adder.Div(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support / operation", left.Kind())
+}
+
+type Ander interface {
+	And(right Value) (Value, error)
+}
+
+func And(left, right Value) (Value, error) {
+	adder, ok := left.(Ander)
+	if ok {
+		return adder.And(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support && operation", left.Kind())
+}
+
+type Orer interface {
+	Or(right Value) (Value, error)
+}
+
+func Or(left, right Value) (Value, error) {
+	adder, ok := left.(Orer)
+	if ok {
+		return adder.Or(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support || operation", left.Kind())
+}
+
+type Leer interface {
+	Le(right Value) (Value, error)
+}
+
+func Le(left, right Value) (Value, error) {
+	adder, ok := left.(Leer)
+	if ok {
+		return adder.Le(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support <= operation", left.Kind())
+}
+
+type Lter interface {
+	Lt(right Value) (Value, error)
+}
+
+func Lt(left, right Value) (Value, error) {
+	adder, ok := left.(Lter)
+	if ok {
+		return adder.Lt(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support < operation", left.Kind())
+}
+
+type Gter interface {
+	Gt(right Value) (Value, error)
+}
+
+func Gt(left, right Value) (Value, error) {
+	adder, ok := left.(Gter)
+	if ok {
+		return adder.Gt(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support > operation", left.Kind())
+}
+
+type Geer interface {
+	Ge(right Value) (Value, error)
+}
+
+func Ge(left, right Value) (Value, error) {
+	adder, ok := left.(Geer)
+	if ok {
+		return adder.Ge(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support >= operation", left.Kind())
+}
+
+type Eqer interface {
+	Eq(right Value) (Value, error)
+}
+
+func Eq(left, right Value) (Value, error) {
+	adder, ok := left.(Eqer)
+	if ok {
+		return adder.Eq(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support == operation", left.Kind())
+}
+
+type Neer interface {
+	Ne(right Value) (Value, error)
+}
+
+func Ne(left, right Value) (Value, error) {
+	adder, ok := left.(Neer)
+	if ok {
+		return adder.Ne(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support != operation", left.Kind())
+}
+
+type Keyser interface {
+	Keys() ([]string, error)
+}
+
+func Keys(left Value) ([]string, error) {
+	adder, ok := left.(Keyser)
+	if ok {
+		return adder.Keys()
+	}
+	return nil, fmt.Errorf("value kind %s does not support keys operation", left.Kind())
+}

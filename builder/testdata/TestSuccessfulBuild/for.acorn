@@ -1,0 +1,6 @@
+for x in list {
+	a: 1
+}
+for i, y in list2 {
+	b: 2
+}

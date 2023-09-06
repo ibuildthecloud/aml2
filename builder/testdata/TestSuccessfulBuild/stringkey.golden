@@ -1,0 +1,18 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.KeyValue{
+		Key: eval.Key{
+			Value: eval.Value{Value: &value.String{
+				String: "key",
+			}},
+		},
+		Value: &eval.Lookup{
+			Pos: eval.Position{
+				Filename: "stringkey.acorn",
+				Offset:   7,
+				Line:     1,
+				Column:   8,
+			},
+			Key: "value",
+		},
+	},
+}}
