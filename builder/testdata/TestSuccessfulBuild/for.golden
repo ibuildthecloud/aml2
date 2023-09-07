@@ -2,7 +2,7 @@
 	&eval.Embedded{Expression: &eval.MergeObjectArray{
 		Array: &eval.For{
 			Value: eval.Value{
-				Value: &value.String{String: "x"},
+				Value: value.String("x"),
 			},
 			List: &eval.Lookup{
 				Pos: eval.Position{
@@ -15,15 +15,15 @@
 			},
 			Body: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
 				Key: eval.Key{Value: eval.Value{
-					Value: &value.String{String: "a"},
+					Value: value.String("a"),
 				}},
 				Value: eval.Value{Value: value.Number("1")},
 			}}},
 		},
 	}},
 	&eval.Embedded{Expression: &eval.MergeObjectArray{Array: &eval.For{
-		Key:   eval.Value{Value: &value.String{String: "i"}},
-		Value: eval.Value{Value: &value.String{String: "y"}},
+		Key:   eval.Value{Value: value.String("i")},
+		Value: eval.Value{Value: value.String("y")},
 		List: &eval.Lookup{
 			Pos: eval.Position{
 				Filename: "for.acorn",
@@ -34,7 +34,7 @@
 			Key: "list2",
 		},
 		Body: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
-			Key:   eval.Key{Value: eval.Value{Value: &value.String{String: "b"}}},
+			Key:   eval.Key{Value: eval.Value{Value: value.String("b")}},
 			Value: eval.Value{Value: value.Number("2")},
 		}}},
 	}}},

@@ -1,0 +1,13 @@
+#Schema: {
+    foo?: 1
+    baz?: number > 2
+    bar: "hi"
+}
+
+{
+    Schema
+    {
+        baz: 3
+        bar: "bye"
+    }
+}

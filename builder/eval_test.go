@@ -35,13 +35,16 @@ func TestSuccessfulEval(t *testing.T) {
 			result, err := Build(ast)
 			require.NoError(t, err)
 
-			v, ok, err := result.ToValue(eval.Data(nil))
-			require.NoError(t, err)
-			assert.True(t, ok)
+			v, ok, err := result.ToValue(eval.Builtin)
+			if err == nil {
+				assert.True(t, ok)
 
-			data, err = json.MarshalIndent(v.NativeValue(), "", "  ")
-			require.NoError(t, err)
-			autogold.ExpectFile(t, string(data))
+				data, err = json.MarshalIndent(v.NativeValue(), "", "  ")
+				require.NoError(t, err)
+				autogold.ExpectFile(t, string(data))
+			} else {
+				autogold.ExpectFile(t, err)
+			}
 		})
 	}
 }

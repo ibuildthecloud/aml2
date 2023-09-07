@@ -1,0 +1,20 @@
+#Schema: {
+    compare: number <= 0 || number < 1 || number > 3 || number >= 1
+    union: number > 1 || {
+        hi: 1
+        first: true
+    } || {
+        hi: "bye"
+        second: true
+    }
+}
+
+{
+    Schema
+    {
+        compare: 1
+        union: {
+            hi: "str"
+        }
+    }
+}

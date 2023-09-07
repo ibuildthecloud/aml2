@@ -28,13 +28,9 @@ func NewValue(v any) Value {
 	case float64:
 		return Number(strconv.FormatFloat(x, 'f', -1, 64))
 	case string:
-		return &String{
-			String: x,
-		}
+		return (String)(x)
 	case bool:
-		return &Boolean{
-			Boolean: x,
-		}
+		return (Boolean)(x)
 	case map[string]any:
 		return NewObject(x)
 	case []any:
@@ -365,4 +361,14 @@ func Keys(left Value) ([]string, error) {
 		return adder.Keys()
 	}
 	return nil, fmt.Errorf("value kind %s does not support keys operation", left.Kind())
+}
+
+type Closer interface {
+	Close(contract ObjectContract)
+}
+
+func Close(right Value, contract ObjectContract) {
+	if c, ok := right.(Closer); ok {
+		c.Close(contract)
+	}
 }

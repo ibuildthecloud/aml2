@@ -1,15 +1,13 @@
 &eval.Struct{Fields: []eval.Field{
 	&eval.Embedded{Expression: &eval.If{
-		Condition: eval.Value{Value: &value.Boolean{
-			Boolean: true,
-		}},
-		Value: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
-			Key: eval.Key{
-				Value: eval.Value{Value: &value.String{
-					String: "a",
-				}},
+		Condition: eval.Value{Value: value.Boolean(true)},
+		Value: &eval.Struct{Fields: []eval.Field{
+			&eval.KeyValue{
+				Key: eval.Key{
+					Value: eval.Value{Value: value.String("a")},
+				},
+				Value: eval.Value{Value: value.Number("1")},
 			},
-			Value: eval.Value{Value: value.Number("1")},
-		}}},
+		}},
 	}},
 }}

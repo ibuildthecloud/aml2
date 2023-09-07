@@ -45,6 +45,7 @@ func (p *Parens) ToValue(scope Scope) (value.Value, bool, error) {
 }
 
 type Op struct {
+	Schema   bool
 	Unary    bool
 	Comments Comments
 	Operator string
@@ -346,7 +347,7 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 		return nil, false, err
 	}
 
-	array := &value.Array{}
+	array := value.Array{}
 
 	for i, item := range list {
 		data := map[string]value.Value{
@@ -364,7 +365,7 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 			continue
 		}
 
-		array.Array = append(array.Array, newValue)
+		array = append(array, newValue)
 
 		if newValue.Kind() == value.ObjectKind {
 			scope = scope.Push(NativeMapLookup(newValue.NativeValue().(map[string]any)))
@@ -372,6 +373,10 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 	}
 
 	return array, true, nil
+}
+
+type SchemaAllowed interface {
+	SchemaAllowed() bool
 }
 
 type MergeObjectArray struct {

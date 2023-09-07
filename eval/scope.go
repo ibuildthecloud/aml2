@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"errors"
+
 	"github.com/acorn-io/aml/value"
 )
 
@@ -28,7 +30,9 @@ type nested struct {
 
 func (n nested) Get(key string) (ret value.Value, _ bool, _ error) {
 	v, ok, err := n.lookup.Lookup(n, key)
-	if err != nil {
+	if e := (*ErrPathNotFound)(nil); errors.As(err, &e) {
+		ok = false
+	} else if err != nil {
 		return nil, false, err
 	}
 	if ok {

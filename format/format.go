@@ -25,6 +25,7 @@ package format
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"text/tabwriter"
 
@@ -104,7 +105,7 @@ func Node(node ast.Node, opt ...Option) ([]byte, error) {
 // Caution: Tools relying on consistent formatting based on the installed
 // version of cue (for instance, such as for presubmit checks) should execute
 // that cue binary instead of calling Source.
-func Source(b []byte, opt ...Option) ([]byte, error) {
+func Source(b io.Reader, opt ...Option) ([]byte, error) {
 	cfg := newConfig(opt)
 
 	f, err := parser.ParseFile("", b, parser.ParseComments)

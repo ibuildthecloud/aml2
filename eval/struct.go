@@ -9,6 +9,7 @@ import (
 type Struct struct {
 	Comments Comments
 	Fields   []Field
+	Schema   bool
 }
 
 // type assertions
@@ -20,6 +21,7 @@ var (
 type Field interface {
 	ValueLookup
 	Expression
+	Keys(scope Scope) ([]string, error)
 }
 
 type ValueLookup interface {
@@ -45,6 +47,17 @@ func (m NativeMapLookup) Lookup(_ Scope, key string) (value.Value, bool, error) 
 	return value.NewValue(ret), ok, nil
 }
 
+func (s *Struct) Keys(scope Scope) (result []string, _ error) {
+	for _, field := range s.Fields {
+		keys, err := field.Keys(scope)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, keys...)
+	}
+	return
+}
+
 func (s *Struct) Lookup(scope Scope, key string) (value.Value, bool, error) {
 	var (
 		last  value.Value
@@ -64,7 +77,7 @@ func (s *Struct) Lookup(scope Scope, key string) (value.Value, bool, error) {
 		if last == nil {
 			last = val
 		} else {
-			last, err = val.Merge(val)
+			last, err = last.Merge(val)
 			if err != nil {
 				return nil, false, err
 			}
@@ -72,6 +85,19 @@ func (s *Struct) Lookup(scope Scope, key string) (value.Value, bool, error) {
 	}
 
 	return last, found, nil
+}
+
+type contract struct {
+	s     *Struct
+	scope Scope
+}
+
+func (c *contract) RequiredKeys() ([]string, error) {
+	return c.s.Keys(c.scope)
+}
+
+func (c *contract) LookupValue(key string) (value.Value, bool, error) {
+	return c.s.Lookup(c.scope, key)
 }
 
 func (s *Struct) ToValue(scope Scope) (value.Value, bool, error) {
@@ -104,6 +130,13 @@ func (s *Struct) ToValue(scope Scope) (value.Value, bool, error) {
 		return &value.Object{}, true, nil
 	}
 
+	if s.Schema {
+		value.Close(last, &contract{
+			s:     s,
+			scope: scope,
+		})
+	}
+
 	return last, true, nil
 }
 
@@ -122,12 +155,32 @@ func (e *Embedded) Lookup(scope Scope, key string) (value.Value, bool, error) {
 	defer func() {
 		e.evaluating = false
 	}()
+
+	// Embedded should always convert to a value first before looking up a value so that
+	// local fields will not be found.
 	v, ok, err := e.Expression.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
 
 	return value.Lookup(v, key)
+}
+
+type Keyser interface {
+	Keys(scope Scope) ([]string, error)
+}
+
+func (e *Embedded) Keys(scope Scope) ([]string, error) {
+	if keys, ok := e.Expression.(Keyser); ok {
+		return keys.Keys(scope)
+	}
+	v, ok, err := e.ToValue(scope)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, nil
+	}
+	return value.Keys(v)
 }
 
 func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {
@@ -164,11 +217,41 @@ type KeyValue struct {
 	Key      Key
 	Value    Expression
 	Optional bool
+	Schema   bool
 
-	evaluating bool
+	evaluating    bool
+	keyEvaluating bool
+}
+
+func (k *KeyValue) Keys(scope Scope) ([]string, error) {
+	if k.Optional || k.Local {
+		return nil, nil
+	}
+	v, ok, err := k.Key.Value.ToValue(scope)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, nil
+	}
+	s, err := value.ToString(v)
+	return []string{s}, err
 }
 
 func (k *KeyValue) Lookup(scope Scope, key string) (value.Value, bool, error) {
+	if k.keyEvaluating {
+		return nil, false, nil
+	}
+
+	k.keyEvaluating = true
+	if ok, err := k.Key.Matches(scope, key); err != nil {
+		k.keyEvaluating = false
+		return nil, false, err
+	} else if !ok {
+		k.keyEvaluating = false
+		return nil, false, nil
+	}
+	k.keyEvaluating = false
+
 	if k.evaluating {
 		return nil, false, nil
 	}
@@ -176,11 +259,6 @@ func (k *KeyValue) Lookup(scope Scope, key string) (value.Value, bool, error) {
 	defer func() {
 		k.evaluating = false
 	}()
-	if ok, err := k.Key.Matches(scope, key); err != nil {
-		return nil, false, err
-	} else if !ok {
-		return nil, false, nil
-	}
 	return k.Value.ToValue(scope)
 }
 
@@ -194,7 +272,12 @@ func (k *KeyValue) ToValue(scope Scope) (value.Value, bool, error) {
 		k.evaluating = false
 	}()
 
-	v, ok, err := k.Value.ToValue(scope)
+	var (
+		v   value.Value
+		ok  bool
+		err error
+	)
+	v, ok, err = k.Value.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}

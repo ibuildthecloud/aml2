@@ -12,11 +12,11 @@ import (
 )
 
 func Build(file *ast.File) (*eval.Struct, error) {
-	return fileToObject(file)
+	return fileToObject(file, file.Schema)
 }
 
-func fileToObject(file *ast.File) (*eval.Struct, error) {
-	fields, err := declsToFields(file.Decls)
+func fileToObject(file *ast.File, schema bool) (*eval.Struct, error) {
+	fields, err := declsToFields(file.Decls, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -27,14 +27,14 @@ func fileToObject(file *ast.File) (*eval.Struct, error) {
 	}, err
 }
 
-func declsToFields(decls []ast.Decl) (result []eval.Field, err error) {
+func declsToFields(decls []ast.Decl, schema bool) (result []eval.Field, err error) {
 	var (
 		errs   []error
 		fields []eval.Field
 	)
 
 	for _, decl := range decls {
-		field, err := declToField(decl)
+		field, err := declToField(decl, schema)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -45,46 +45,63 @@ func declsToFields(decls []ast.Decl) (result []eval.Field, err error) {
 	return fields, errors.Join(errs...)
 }
 
-func declToField(decl ast.Decl) (_ eval.Field, err error) {
+func processKeyForSchema(f *eval.KeyValue) {
+	str, ok := f.Key.Value.(eval.Value)
+	if !ok {
+		return
+	}
+	s, err := value.ToString(str.Value)
+	if err != nil {
+		return
+	}
+	if strings.HasPrefix(s, "#") {
+		f.Schema = true
+		f.Key.Value = &eval.Value{
+			Value: value.NewValue(strings.TrimPrefix(s, "#")),
+		}
+	}
+}
+
+func declToField(decl ast.Decl, schema bool) (_ eval.Field, err error) {
 	switch v := decl.(type) {
 	case *ast.Field:
 		var result eval.KeyValue
 		result.Comments = getComments(decl)
 		result.Optional = v.Constraint == token.OPTION
-		result.Key, err = labelToKey(v.Label)
+		result.Key, err = labelToKey(v.Label, schema)
 		if err != nil {
 			return &result, err
 		}
-
-		result.Value, err = exprToExpression(v.Value)
+		processKeyForSchema(&result)
+		result.Value, err = exprToExpression(v.Value, schema || result.Schema)
 		return &result, err
 	case *ast.EmbedDecl:
 		var result eval.Embedded
 		result.Comments = getComments(decl)
-		result.Expression, err = exprToExpression(v.Expr)
+		result.Expression, err = exprToExpression(v.Expr, schema)
 		return &result, err
 	case *ast.LetClause:
 		var result eval.KeyValue
 		result.Comments = getComments(decl)
 		result.Local = true
-		result.Key, err = labelToKey(v.Ident)
+		result.Key, err = labelToKey(v.Ident, schema)
 		if err != nil {
 			return nil, err
 		}
 
-		result.Value, err = exprToExpression(v.Expr)
+		result.Value, err = exprToExpression(v.Expr, result.Schema)
 		return &result, err
 	case *ast.Comprehension:
 		var result eval.Embedded
 		result.Comments = getComments(decl)
-		result.Expression, err = comprehensionToExpression(v, true)
+		result.Expression, err = comprehensionToExpression(v, true, schema)
 		return &result, err
 	default:
 		return nil, NewErrUnknownError(decl)
 	}
 }
 
-func interpolationToExpression(comp *ast.Interpolation) (eval.Expression, error) {
+func interpolationToExpression(comp *ast.Interpolation, schema bool) (eval.Expression, error) {
 	result := &eval.Interpolation{}
 
 	for i := range comp.Elts {
@@ -103,7 +120,7 @@ func interpolationToExpression(comp *ast.Interpolation) (eval.Expression, error)
 			lit.Value = strings.TrimSuffix(lit.Value, "\\(")
 			result.Parts = append(result.Parts, lit.Value)
 		case i%2 == 1:
-			expr, err := exprToExpression(comp.Elts[i])
+			expr, err := exprToExpression(comp.Elts[i], schema)
 			if err != nil {
 				return nil, err
 			}
@@ -114,15 +131,15 @@ func interpolationToExpression(comp *ast.Interpolation) (eval.Expression, error)
 	return result, nil
 }
 
-func comprehensionToExpression(comp *ast.Comprehension, field bool) (eval.Expression, error) {
-	value, err := exprToExpression(comp.Value)
+func comprehensionToExpression(comp *ast.Comprehension, field, schema bool) (eval.Expression, error) {
+	value, err := exprToExpression(comp.Value, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	switch c := comp.Clauses[0].(type) {
 	case *ast.IfClause:
-		condition, err := exprToExpression(c.Condition)
+		condition, err := exprToExpression(c.Condition, schema)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +149,7 @@ func comprehensionToExpression(comp *ast.Comprehension, field bool) (eval.Expres
 			Value:     value,
 		}, nil
 	case *ast.ForClause:
-		e, err := forToFor(c, value)
+		e, err := forToFor(c, value, schema)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +164,7 @@ func comprehensionToExpression(comp *ast.Comprehension, field bool) (eval.Expres
 	}
 }
 
-func forToFor(comp *ast.ForClause, value eval.Expression) (*eval.For, error) {
+func forToFor(comp *ast.ForClause, value eval.Expression, schema bool) (*eval.For, error) {
 	var (
 		result = &eval.For{
 			Comments: getComments(comp),
@@ -157,18 +174,18 @@ func forToFor(comp *ast.ForClause, value eval.Expression) (*eval.For, error) {
 	)
 
 	if comp.Key != nil {
-		result.Key, err = labelToExpression(comp.Key)
+		result.Key, err = labelToExpression(comp.Key, schema)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	result.Value, err = labelToExpression(comp.Value)
+	result.Value, err = labelToExpression(comp.Value, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	result.List, err = exprToExpression(comp.Source)
+	result.List, err = exprToExpression(comp.Source, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +193,7 @@ func forToFor(comp *ast.ForClause, value eval.Expression) (*eval.For, error) {
 	return result, nil
 }
 
-func basicListToValue(lit *ast.BasicLit) (eval.Expression, error) {
+func basicListToValue(lit *ast.BasicLit, schema bool) (eval.Expression, error) {
 	switch lit.Kind {
 	case token.INT, token.FLOAT:
 		return eval.Value{
@@ -188,21 +205,15 @@ func basicListToValue(lit *ast.BasicLit) (eval.Expression, error) {
 			return nil, err
 		}
 		return eval.Value{
-			Value: &value.String{
-				String: s,
-			},
+			Value: value.NewValue(s),
 		}, nil
 	case token.TRUE:
 		return eval.Value{
-			Value: &value.Boolean{
-				Boolean: true,
-			},
+			Value: value.True,
 		}, nil
 	case token.FALSE:
 		return eval.Value{
-			Value: &value.Boolean{
-				Boolean: false,
-			},
+			Value: value.False,
 		}, nil
 	case token.NULL:
 		return eval.Value{
@@ -213,19 +224,20 @@ func basicListToValue(lit *ast.BasicLit) (eval.Expression, error) {
 	}
 }
 
-func structToExpression(s *ast.StructLit) (eval.Expression, error) {
-	fields, err := declsToFields(s.Elts)
+func structToExpression(s *ast.StructLit, schema bool) (eval.Expression, error) {
+	fields, err := declsToFields(s.Elts, schema)
 	if err != nil {
 		return nil, err
 	}
 	return &eval.Struct{
 		Comments: getComments(s),
 		Fields:   fields,
+		Schema:   schema,
 	}, err
 }
 
-func listToExpression(list *ast.ListLit) (eval.Expression, error) {
-	exprs, err := exprsToExpressions(list.Elts)
+func listToExpression(list *ast.ListLit, schema bool) (eval.Expression, error) {
+	exprs, err := exprsToExpressions(list.Elts, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -235,10 +247,10 @@ func listToExpression(list *ast.ListLit) (eval.Expression, error) {
 	}, nil
 }
 
-func exprsToExpressions(exprs []ast.Expr) (result []eval.Expression, _ error) {
+func exprsToExpressions(exprs []ast.Expr, schema bool) (result []eval.Expression, _ error) {
 	var errs []error
 	for _, expr := range exprs {
-		newExpr, err := exprToExpression(expr)
+		newExpr, err := exprToExpression(expr, schema)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -248,8 +260,8 @@ func exprsToExpressions(exprs []ast.Expr) (result []eval.Expression, _ error) {
 	return result, errors.Join(errs...)
 }
 
-func unaryToExpression(bin *ast.UnaryExpr) (eval.Expression, error) {
-	left, err := exprToExpression(bin.X)
+func unaryToExpression(bin *ast.UnaryExpr, schema bool) (eval.Expression, error) {
+	left, err := exprToExpression(bin.X, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -267,18 +279,19 @@ func pos(t token.Pos) eval.Position {
 	return eval.Position(t.Position())
 }
 
-func binaryToExpression(bin *ast.BinaryExpr) (eval.Expression, error) {
-	left, err := exprToExpression(bin.X)
+func binaryToExpression(bin *ast.BinaryExpr, schema bool) (eval.Expression, error) {
+	left, err := exprToExpression(bin.X, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	right, err := exprToExpression(bin.Y)
+	right, err := exprToExpression(bin.Y, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &eval.Op{
+		Schema:   schema,
 		Comments: getComments(bin),
 		Operator: bin.Op.String(),
 		Left:     left,
@@ -287,15 +300,15 @@ func binaryToExpression(bin *ast.BinaryExpr) (eval.Expression, error) {
 	}, nil
 }
 
-func parensToExpression(parens *ast.ParenExpr) (eval.Expression, error) {
-	expr, err := exprToExpression(parens.X)
+func parensToExpression(parens *ast.ParenExpr, schema bool) (eval.Expression, error) {
+	expr, err := exprToExpression(parens.X, schema)
 	return &eval.Parens{
 		Comments: getComments(parens),
 		Expr:     expr,
 	}, err
 }
 
-func identToExpression(ident *ast.Ident) (eval.Expression, error) {
+func identToExpression(ident *ast.Ident, schema bool) (eval.Expression, error) {
 	key, err := value.Unquote(ident.Name)
 	if err != nil {
 		return nil, err
@@ -307,13 +320,13 @@ func identToExpression(ident *ast.Ident) (eval.Expression, error) {
 	}, nil
 }
 
-func selectorToExpression(sel *ast.SelectorExpr) (eval.Expression, error) {
-	key, err := labelToExpression(sel.Sel)
+func selectorToExpression(sel *ast.SelectorExpr, schema bool) (eval.Expression, error) {
+	key, err := labelToExpression(sel.Sel, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	selExpr, err := exprToExpression(sel.X)
+	selExpr, err := exprToExpression(sel.X, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -326,13 +339,13 @@ func selectorToExpression(sel *ast.SelectorExpr) (eval.Expression, error) {
 	}, nil
 }
 
-func indexToExpression(indexExpr *ast.IndexExpr) (eval.Expression, error) {
-	base, err := exprToExpression(indexExpr.X)
+func indexToExpression(indexExpr *ast.IndexExpr, schema bool) (eval.Expression, error) {
+	base, err := exprToExpression(indexExpr.X, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	index, err := exprToExpression(indexExpr.Index)
+	index, err := exprToExpression(indexExpr.Index, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -345,18 +358,18 @@ func indexToExpression(indexExpr *ast.IndexExpr) (eval.Expression, error) {
 	}, nil
 }
 
-func sliceToExpression(sliceExpr *ast.SliceExpr) (eval.Expression, error) {
-	base, err := exprToExpression(sliceExpr.X)
+func sliceToExpression(sliceExpr *ast.SliceExpr, schema bool) (eval.Expression, error) {
+	base, err := exprToExpression(sliceExpr.X, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	low, err := exprToExpression(sliceExpr.Low)
+	low, err := exprToExpression(sliceExpr.Low, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	high, err := exprToExpression(sliceExpr.High)
+	high, err := exprToExpression(sliceExpr.High, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -370,13 +383,13 @@ func sliceToExpression(sliceExpr *ast.SliceExpr) (eval.Expression, error) {
 	}, nil
 }
 
-func callToExpression(callExpr *ast.CallExpr) (eval.Expression, error) {
-	f, err := exprToExpression(callExpr.Fun)
+func callToExpression(callExpr *ast.CallExpr, schema bool) (eval.Expression, error) {
+	f, err := exprToExpression(callExpr.Fun, schema)
 	if err != nil {
 		return nil, err
 	}
 
-	args, err := exprsToExpressions(callExpr.Args)
+	args, err := exprsToExpressions(callExpr.Args, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -389,45 +402,45 @@ func callToExpression(callExpr *ast.CallExpr) (eval.Expression, error) {
 	}, nil
 }
 
-func exprToExpression(expr ast.Expr) (eval.Expression, error) {
+func exprToExpression(expr ast.Expr, schema bool) (eval.Expression, error) {
 	if expr == nil {
 		return nil, nil
 	}
 
 	switch n := expr.(type) {
 	case *ast.BasicLit:
-		return basicListToValue(n)
+		return basicListToValue(n, schema)
 	case *ast.StructLit:
-		return structToExpression(n)
+		return structToExpression(n, schema)
 	case *ast.ListLit:
-		return listToExpression(n)
+		return listToExpression(n, schema)
 	case *ast.BinaryExpr:
-		return binaryToExpression(n)
+		return binaryToExpression(n, schema)
 	case *ast.UnaryExpr:
-		return unaryToExpression(n)
+		return unaryToExpression(n, schema)
 	case *ast.ParenExpr:
-		return parensToExpression(n)
+		return parensToExpression(n, schema)
 	case *ast.Ident:
-		return identToExpression(n)
+		return identToExpression(n, schema)
 	case *ast.SelectorExpr:
-		return selectorToExpression(n)
+		return selectorToExpression(n, schema)
 	case *ast.IndexExpr:
-		return indexToExpression(n)
+		return indexToExpression(n, schema)
 	case *ast.SliceExpr:
-		return sliceToExpression(n)
+		return sliceToExpression(n, schema)
 	case *ast.CallExpr:
-		return callToExpression(n)
+		return callToExpression(n, schema)
 	case *ast.Comprehension:
-		return comprehensionToExpression(n, false)
+		return comprehensionToExpression(n, false, schema)
 	case *ast.Interpolation:
-		return interpolationToExpression(n)
+		return interpolationToExpression(n, schema)
 	default:
 		return nil, NewErrUnknownError(n)
 	}
 }
 
-func labelToKey(label ast.Label) (eval.Key, error) {
-	expr, err := labelToExpression(label)
+func labelToKey(label ast.Label, schema bool) (eval.Key, error) {
+	expr, err := labelToExpression(label, schema)
 	if err != nil {
 		return eval.Key{}, err
 	}
@@ -436,7 +449,7 @@ func labelToKey(label ast.Label) (eval.Key, error) {
 	}, nil
 }
 
-func labelToExpression(expr ast.Label) (eval.Expression, error) {
+func labelToExpression(expr ast.Label, schema bool) (eval.Expression, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -448,9 +461,7 @@ func labelToExpression(expr ast.Label) (eval.Expression, error) {
 			return nil, err
 		}
 		return eval.Value{
-			Value: &value.String{
-				String: s,
-			},
+			Value: value.NewValue(s),
 		}, nil
 	case *ast.Ident:
 		s, err := value.Unquote(n.Name)
@@ -458,12 +469,10 @@ func labelToExpression(expr ast.Label) (eval.Expression, error) {
 			return nil, err
 		}
 		return eval.Value{
-			Value: &value.String{
-				String: s,
-			},
+			Value: value.NewValue(s),
 		}, nil
 	case *ast.Interpolation:
-		return exprToExpression(n)
+		return exprToExpression(n, schema)
 	default:
 		return nil, NewErrUnknownError(n)
 	}

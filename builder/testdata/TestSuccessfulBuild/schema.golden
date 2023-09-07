@@ -1,15 +1,17 @@
 &eval.Struct{Fields: []eval.Field{
 	&eval.KeyValue{
 		Key: eval.Key{
-			Value: eval.Value{Value: &value.String{
-				String: "#Schema",
-			}},
+			Value: &eval.Value{Value: value.String("Schema")},
 		},
-		Value: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
-			Key: eval.Key{Value: eval.Value{
-				Value: &value.String{String: "foo"},
+		Value: &eval.Struct{
+			Fields: []eval.Field{&eval.KeyValue{
+				Key: eval.Key{Value: eval.Value{
+					Value: value.String("foo"),
+				}},
+				Value: eval.Value{Value: value.String("bar")},
 			}},
-			Value: eval.Value{Value: &value.String{String: "bar"}},
-		}}},
+			Schema: true,
+		},
+		Schema: true,
 	},
 }}

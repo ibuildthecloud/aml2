@@ -21,6 +21,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/acorn-io/aml/ast"
+	"github.com/acorn-io/aml/errors"
+	"github.com/acorn-io/aml/literal"
 	"github.com/acorn-io/aml/token"
 )
 
@@ -43,7 +45,7 @@ type printer struct {
 	indent      int
 	spaceBefore bool
 
-	errs errors.Error
+	errs []error
 }
 
 type line int
@@ -54,7 +56,7 @@ func (p *printer) init(cfg *config) {
 }
 
 func (p *printer) errf(n ast.Node, format string, args ...interface{}) {
-	p.errs = errors.Append(p.errs, errors.Newf(n.Pos(), format, args...))
+	p.errs = append(p.errs, errors.Newf(n.Pos(), format, args...))
 }
 
 const debug = false
@@ -193,12 +195,6 @@ func (p *printer) Print(v interface{}) {
 			p.allowed &^= newline | newsection | formfeed | declcomma
 		}
 		return
-
-	case *ast.Attribute:
-		isLit = true
-		data = x.Text
-		impliedComma = true
-		p.lastTok = token.ATTRIBUTE
 
 	case *ast.Comment:
 		// TODO: if implied comma, postpone comment
@@ -411,8 +407,6 @@ func mayCombine(prev, next token.Token) (before, after bool) {
 		return true, true
 	}
 	switch prev {
-	case token.IQUO, token.IREM, token.IDIV, token.IMOD:
-		return false, false
 	case token.INT:
 		before = next == token.PERIOD // 1.
 	case token.ADD:

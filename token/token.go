@@ -59,18 +59,20 @@ const (
 	LEQ // <=
 	GEQ // >=
 
+	MAT  // =~
+	NMAT // !~
+
 	LPAREN // (
 	LBRACK // [
 	LBRACE // {
 	COMMA  // ,
 	PERIOD // .
 
-	RPAREN    // )
-	RBRACK    // ]
-	RBRACE    // }
-	SEMICOLON // ;
-	COLON     // :
-	OPTION    // ?
+	RPAREN // )
+	RBRACK // ]
+	RBRACE // }
+	COLON  // :
+	OPTION // ?
 	operatorEnd
 
 	keywordBeg
@@ -118,18 +120,20 @@ var tokens = [...]string{
 	LEQ: "<=",
 	GEQ: ">=",
 
+	MAT:  "=~",
+	NMAT: "!~",
+
 	LPAREN: "(",
 	LBRACK: "[",
 	LBRACE: "{",
 	COMMA:  ",",
 	PERIOD: ".",
 
-	RPAREN:    ")",
-	RBRACK:    "]",
-	RBRACE:    "}",
-	SEMICOLON: ";",
-	COLON:     ":",
-	OPTION:    "?",
+	RPAREN: ")",
+	RBRACK: "]",
+	RBRACE: "}",
+	COLON:  ":",
+	OPTION: "?",
 
 	FALSE: "false",
 	TRUE:  "true",
@@ -184,7 +188,7 @@ func (tok Token) Precedence() int {
 		return 3
 	case LAND:
 		return 4
-	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
+	case EQL, NEQ, LSS, LEQ, GTR, GEQ, MAT, NMAT:
 		return 5
 	case ADD, SUB:
 		return 6

@@ -10,6 +10,9 @@ func mergeNative(left, right Value) (Value, error) {
 }
 
 func mergeNull(left, right Value) (Value, error) {
+	if left.Kind() == SchemaKind && right.Kind() == ObjectKind {
+		return nil, nil
+	}
 	if left.Kind() == NullKind {
 		return right, nil
 	}

@@ -1,14 +1,12 @@
 &eval.Struct{Fields: []eval.Field{
 	&eval.KeyValue{
 		Key: eval.Key{
-			Value: eval.Value{Value: &value.String{
-				String: "y",
-			}},
+			Value: eval.Value{Value: value.String("y")},
 		},
 		Value: eval.Value{Value: value.Number("1")},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: &value.String{String: "z"}}},
+		Key: eval.Key{Value: eval.Value{Value: value.String("z")}},
 		Value: &eval.Interpolation{Parts: []interface{}{
 			`"""
 asfd `,

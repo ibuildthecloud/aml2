@@ -65,8 +65,6 @@ type quoteInfo struct {
 	numHash int
 }
 
-const bom = 0xFEFF // byte order mark, only permitted as very first character
-
 // Read the next Unicode char into s.ch.
 // s.ch < 0 means end-of-file.
 func (s *Scanner) next() {
@@ -100,6 +98,8 @@ func (s *Scanner) next() {
 		s.ch = -1 // eof
 	}
 }
+
+const bom = 0xFEFF // byte order mark, only permitted as very first character
 
 // A Mode value is a set of flags (or 0).
 // They control scanner behavior.
@@ -746,9 +746,6 @@ scanAgain:
 			}
 		case ':':
 			tok = token.COLON
-		case ';':
-			tok = token.SEMICOLON
-			insertEOL = true
 		case '?':
 			tok = token.OPTION
 			insertEOL = true
@@ -813,9 +810,19 @@ scanAgain:
 		case '>':
 			tok = s.switch2(token.GTR, token.GEQ)
 		case '=':
-			tok = s.switch2(token.BIND, token.EQL)
+			if s.ch == '~' {
+				s.next()
+				tok = token.MAT
+			} else {
+				tok = s.switch2(token.BIND, token.EQL)
+			}
 		case '!':
-			tok = s.switch2(token.NOT, token.NEQ)
+			if s.ch == '~' {
+				s.next()
+				tok = token.NMAT
+			} else {
+				tok = s.switch2(token.NOT, token.NEQ)
+			}
 		case '&':
 			if s.ch == '&' {
 				s.next()

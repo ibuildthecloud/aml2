@@ -15,10 +15,12 @@
 package format
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/acorn-io/aml/ast"
+	"github.com/acorn-io/aml/literal"
 	"github.com/acorn-io/aml/token"
 )
 
@@ -56,14 +58,10 @@ func printNode(node interface{}, f *printer) error {
 		goto unsupported
 	}
 
-	return s.errs
+	return errors.Join(s.errs...)
 
 unsupported:
 	return fmt.Errorf("cue/format: unsupported node type %T", node)
-}
-
-func isRegularField(tok token.Token) bool {
-	return tok == token.ILLEGAL || tok == token.COLON
 }
 
 // Helper functions for common node lists. They may be empty.
@@ -85,24 +83,33 @@ func nestDepth(f *ast.Field) int {
 
 // TODO: be more accurate and move to astutil
 func hasDocComments(d ast.Decl) bool {
-	if len(d.Comments()) > 0 {
+	if len(ast.Comments(d)) > 0 {
 		return true
 	}
 	switch x := d.(type) {
 	case *ast.Field:
-		return len(x.Label.Comments()) > 0
-	case *ast.Alias:
-		return len(x.Ident.Comments()) > 0
+		return len(ast.Comments(x.Label)) > 0
 	case *ast.LetClause:
 		return len(x.Ident.Comments()) > 0
 	}
 	return false
 }
 
+func isDefinition(label ast.Label) bool {
+	switch x := label.(type) {
+	case *ast.Ident:
+		return isDef(x.Name)
+	}
+	return false
+}
+
+func isDef(s string) bool {
+	return strings.HasPrefix(s, "#") || strings.HasPrefix(s, "_#")
+}
+
 func (f *formatter) walkDeclList(list []ast.Decl) {
 	f.before(nil)
 	d := 0
-	hasEllipsis := false
 	for i, x := range list {
 		if i > 0 {
 			f.print(declcomma)
@@ -116,7 +123,7 @@ func (f *formatter) walkDeclList(list []ast.Decl) {
 			if hasDocComments(x) {
 				switch x := list[i-1].(type) {
 				case *ast.Field:
-					if internal.IsDefinition(x.Label) {
+					if isDefinition(x.Label) {
 						f.print(newsection)
 					}
 
@@ -124,10 +131,6 @@ func (f *formatter) walkDeclList(list []ast.Decl) {
 					f.print(newsection)
 				}
 			}
-		}
-		if f.printer.cfg.simplify && internal.IsEllipsis(x) {
-			hasEllipsis = true
-			continue
 		}
 		f.decl(x)
 		d = 0
@@ -154,20 +157,6 @@ func (f *formatter) walkDeclList(list []ast.Decl) {
 		}
 		f.print(f.current.parentSep)
 	}
-	if hasEllipsis {
-		f.decl(&ast.Ellipsis{})
-		f.print(f.current.parentSep)
-	}
-	f.after(nil)
-}
-
-func (f *formatter) walkSpecList(list []*ast.ImportSpec) {
-	f.before(nil)
-	for _, x := range list {
-		f.before(x)
-		f.importSpec(x)
-		f.after(x)
-	}
 	f.after(nil)
 }
 
@@ -191,16 +180,6 @@ func (f *formatter) walkListElems(list []ast.Expr) {
 			f.walkClauseList(n.Clauses, blank)
 			f.print(blank, nooverride)
 			f.expr(n.Value)
-
-		case *ast.Ellipsis:
-			f.ellipsis(n)
-
-		case *ast.Alias:
-			f.expr(n.Ident)
-			f.print(n.Equal, token.BIND)
-			f.expr(n.Expr)
-
-			// TODO: ast.CommentGroup: allows comment groups in ListLits.
 
 		case ast.Expr:
 			f.exprRaw(n, token.LowestPrec, 1)
@@ -230,7 +209,7 @@ func (f *formatter) file(file *ast.File) {
 }
 
 func (f *formatter) inlineField(n *ast.Field) *ast.Field {
-	regular := internal.IsRegularField(n)
+	regular := isRegularField(n)
 	// shortcut single-element structs.
 	// If the label has a valid position, we assume that an unspecified
 	// Lbrace signals the intend to collapse fields.
@@ -241,13 +220,12 @@ func (f *formatter) inlineField(n *ast.Field) *ast.Field {
 	obj, ok := n.Value.(*ast.StructLit)
 	if !ok || len(obj.Elts) != 1 ||
 		(obj.Lbrace.IsValid() && !f.printer.cfg.simplify) ||
-		(obj.Lbrace.IsValid() && hasDocComments(n)) ||
-		len(n.Attrs) > 0 {
+		(obj.Lbrace.IsValid() && hasDocComments(n)) {
 		return nil
 	}
 
 	mem, ok := obj.Elts[0].(*ast.Field)
-	if !ok || len(mem.Attrs) > 0 {
+	if !ok {
 		return nil
 	}
 
@@ -262,6 +240,21 @@ func (f *formatter) inlineField(n *ast.Field) *ast.Field {
 	return mem
 }
 
+func isRegularField(f *ast.Field) bool {
+	var ident *ast.Ident
+	switch x := f.Label.(type) {
+	case *ast.Ident:
+		ident = x
+	}
+	if ident == nil {
+		return true
+	}
+	if strings.HasPrefix(ident.Name, "#") || strings.HasPrefix(ident.Name, "_") {
+		return false
+	}
+	return true
+}
+
 func (f *formatter) decl(decl ast.Decl) {
 	if decl == nil {
 		return
@@ -273,22 +266,15 @@ func (f *formatter) decl(decl ast.Decl) {
 
 	switch n := decl.(type) {
 	case *ast.Field:
-		constraint, _ := internal.ConstraintToken(n)
-		f.label(n.Label, constraint)
-
-		regular := isRegularField(n.Token)
-		if regular {
-			f.print(noblank, nooverride, n.TokenPos, token.COLON)
-		} else {
-			f.print(blank, nooverride, n.Token)
-		}
+		f.label(n.Label, n.Constraint)
+		f.print(noblank, nooverride, n.TokenPos, token.COLON)
 
 		if mem := f.inlineField(n); mem != nil {
 			switch {
 			default:
 				fallthrough
 
-			case regular && f.cfg.simplify:
+			case f.cfg.simplify:
 				f.print(blank, nooverride)
 				f.decl(mem)
 
@@ -322,46 +308,12 @@ func (f *formatter) decl(decl ast.Decl) {
 			f.visitComments(f.current.pos)
 		}
 
-		space := tab
-		for _, a := range n.Attrs {
-			if f.before(a) {
-				f.print(space, a.At, a)
-			}
-			f.after(a)
-			space = blank
-		}
-
 		if nextFF {
 			f.print(formfeed)
 		}
 
 	case *ast.BadDecl:
 		f.print(n.From, "*bad decl*", declcomma)
-
-	case *ast.Package:
-		f.print(n.PackagePos, "package")
-		f.print(blank, n.Name, newsection, nooverride)
-
-	case *ast.ImportDecl:
-		f.print(n.Import, "import")
-		if len(n.Specs) == 0 {
-			f.print(blank, n.Lparen, token.LPAREN, n.Rparen, token.RPAREN, newline)
-			break
-		}
-		switch {
-		case len(n.Specs) == 1 && len(n.Specs[0].Comments()) == 0:
-			if !n.Lparen.IsValid() {
-				f.print(blank)
-				f.walkSpecList(n.Specs)
-				break
-			}
-			fallthrough
-		default:
-			f.print(blank, n.Lparen, token.LPAREN, newline, indent)
-			f.walkSpecList(n.Specs)
-			f.print(unindent, newline, n.Rparen, token.RPAREN, newline)
-		}
-		f.print(newsection, nooverride)
 
 	case *ast.LetClause:
 		if !decl.Pos().HasRelPos() || decl.Pos().RelPos() >= token.Newline {
@@ -379,9 +331,6 @@ func (f *formatter) decl(decl ast.Decl) {
 		}
 		f.expr(n.Expr)
 		f.print(newline, noblank)
-
-	case *ast.Attribute:
-		f.print(n.At, n)
 
 	case *ast.CommentGroup:
 		f.printComment(n)
@@ -402,20 +351,6 @@ func (f *formatter) embedding(decl ast.Expr) {
 		f.print(blank, nooverride)
 		f.expr(n.Value)
 
-	case *ast.Ellipsis:
-		f.ellipsis(n)
-
-	case *ast.Alias:
-		if !decl.Pos().HasRelPos() || decl.Pos().RelPos() >= token.Newline {
-			f.print(formfeed)
-		}
-		f.expr(n.Ident)
-		f.print(blank, n.Equal, token.BIND, blank)
-		f.expr(n.Expr)
-		f.print(declcomma) // implied
-
-		// TODO: ast.CommentGroup: allows comment groups in ListLits.
-
 	case ast.Expr:
 		f.exprRaw(n, token.LowestPrec, 1)
 	}
@@ -433,24 +368,10 @@ func (f *formatter) nextNeedsFormfeed(n ast.Expr) bool {
 	return false
 }
 
-func (f *formatter) importSpec(x *ast.ImportSpec) {
-	if x.Name != nil {
-		f.label(x.Name, token.ILLEGAL)
-		f.print(blank)
-	} else {
-		f.current.pos++
-		f.visitComments(f.current.pos)
-	}
-	f.expr(x.Path)
-	f.print(newline)
-}
-
 func (f *formatter) label(l ast.Label, constraint token.Token) {
 	f.before(l)
 	defer f.after(l)
 	switch n := l.(type) {
-	case *ast.Alias:
-		f.expr(n)
 
 	case *ast.Ident:
 		// Escape an identifier that has invalid characters. This may happen,
@@ -489,13 +410,6 @@ func (f *formatter) label(l ast.Label, constraint token.Token) {
 	}
 }
 
-func (f *formatter) ellipsis(x *ast.Ellipsis) {
-	f.print(x.Ellipsis, token.ELLIPSIS)
-	if x.Type != nil && !isTop(x.Type) {
-		f.expr(x.Type)
-	}
-}
-
 func (f *formatter) expr(x ast.Expr) {
 	const depth = 1
 	f.expr1(x, token.LowestPrec, depth)
@@ -517,15 +431,6 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 	switch x := expr.(type) {
 	case *ast.BadExpr:
 		f.print(x.From, "_|_")
-
-	case *ast.BottomLit:
-		f.print(x.Bottom, token.BOTTOM)
-
-	case *ast.Alias:
-		// Aliases in expression positions are printed in short form.
-		f.label(x.Ident, token.ILLEGAL)
-		f.print(x.Equal, token.BIND)
-		f.expr(x.Expr)
 
 	case *ast.Ident:
 		f.print(x.NamePos, x)
@@ -653,9 +558,6 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		f.visitComments(f.current.pos)
 		f.matchUnindent()
 		f.print(noblank, x.Rbrack, token.RBRACK)
-
-	case *ast.Ellipsis:
-		f.ellipsis(x)
 
 	default:
 		panic(fmt.Sprintf("unimplemented type %T", x))

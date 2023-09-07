@@ -17,7 +17,6 @@
 package parser
 
 import (
-	"bytes"
 	"io"
 
 	"github.com/acorn-io/aml/ast"
@@ -41,22 +40,10 @@ var (
 		p.mode |= traceMode
 	}
 
-	// DeclarationErrors causes parsing to report declaration errors.
-	DeclarationErrors Option = declarationErrors
-	declarationErrors        = func(p *parser) {
-		p.mode |= declarationErrorsMode
-	}
-
 	// AllErrors causes all errors to be reported (not just the first 10 on different lines).
 	AllErrors Option = allErrors
 	allErrors        = func(p *parser) {
 		p.mode |= allErrorsMode
-	}
-
-	// AllowPartial allows the parser to be used on a prefix buffer.
-	AllowPartial Option = allowPartial
-	allowPartial        = func(p *parser) {
-		p.mode |= partialMode
 	}
 
 	// AllowPartial allows the parser to be used on a prefix buffer.
@@ -66,23 +53,6 @@ var (
 	}
 )
 
-// FromVersion specifies until which legacy version the parser should provide
-// backwards compatibility.
-func FromVersion(version int) Option {
-	if version >= 0 {
-		version++
-	}
-	// Versions:
-	// <0:  major version 0 (counting -1000 + x, where x = 100*m+p in 0.m.p
-	// >=0: x+1 in 1.x.y
-	return func(p *parser) { p.version = version }
-}
-
-// FileOffset specifies the File position info to use.
-func FileOffset(pos int) Option {
-	return func(p *parser) { p.offset = pos }
-}
-
 // A mode value is a set of flags (or 0).
 // They control the amount of source code parsed and other optional
 // parser functionality.
@@ -91,10 +61,8 @@ type mode uint
 const (
 	parseCommentsMode mode = 1 << iota // parse comments and add them to AST
 	parseFuncsMode                     // parse function declarations (experimental)
-	partialMode
-	traceMode             // print a trace of parsed productions
-	declarationErrorsMode // report declaration errors
-	allErrorsMode         // report all errors (not just the first 10 on different lines)
+	traceMode                          // print a trace of parsed productions
+	allErrorsMode                      // report all errors (not just the first 10 on different lines)
 )
 
 // ParseFile parses the source code of a single CUE source file and returns
@@ -185,16 +153,7 @@ func ParseExpr(filename string, src io.Reader, mode ...Option) (ast.Expr, error)
 	if p.tok == token.COMMA && p.lit == "\n" {
 		p.next()
 	}
-	if p.mode&partialMode == 0 {
-		p.expect(token.EOF)
-	}
 
+	p.expect(token.EOF)
 	return e, p.errors
-}
-
-// parseExprString is a convenience function for obtaining the AST of an
-// expression x. The position information recorded in the AST is undefined. The
-// filename used in error messages is the empty string.
-func parseExprString(x string) (ast.Expr, error) {
-	return ParseExpr("", bytes.NewReader([]byte(x)))
 }

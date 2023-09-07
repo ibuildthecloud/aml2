@@ -16,8 +16,10 @@ package format
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/acorn-io/aml/ast"
+	"github.com/acorn-io/aml/ast/astutil"
 )
 
 // labelSimplifier rewrites string labels to identifiers if
@@ -85,7 +87,7 @@ func (s *labelSimplifier) markStrings(n ast.Node) bool {
 	switch x := n.(type) {
 	case *ast.BasicLit:
 		str, err := strconv.Unquote(x.Value)
-		if err != nil || !ast.IsValidIdent(str) || internal.IsDefOrHidden(str) {
+		if err != nil || !ast.IsValidIdent(str) || isDefOrHidden(str) {
 			return false
 		}
 		s.scope[str] = true
@@ -103,9 +105,13 @@ func (s *labelSimplifier) replace(c astutil.Cursor) bool {
 	switch x := c.Node().(type) {
 	case *ast.BasicLit:
 		str, err := strconv.Unquote(x.Value)
-		if err == nil && s.scope[str] && !internal.IsDefOrHidden(str) {
+		if err == nil && s.scope[str] && !isDefOrHidden(str) {
 			c.Replace(ast.NewIdent(str))
 		}
 	}
 	return true
+}
+
+func isDefOrHidden(s string) bool {
+	return strings.HasPrefix(s, "#") || strings.HasPrefix(s, "_")
 }

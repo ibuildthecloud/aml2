@@ -1,0 +1,43 @@
+&errors.joinError{errs: []error{
+	&builder.ErrUnknownError{Node: &ast.ParenExpr{
+		Lparen: token.Pos{
+			file: &token.File{
+				name: "dynamicfield.acorn",
+				base: token.index(1),
+				size: token.index(14),
+				lines: []token.index{
+					token.index(0),
+					token.index(7),
+				},
+			},
+			offset: 132,
+		},
+		X: &ast.Ident{
+			NamePos: token.Pos{
+				file: &token.File{
+					name: "dynamicfield.acorn",
+					base: token.index(1),
+					size: token.index(14),
+					lines: []token.index{
+						token.index(0),
+						token.index(7),
+					},
+				},
+				offset: 146,
+			},
+			Name: "a",
+		},
+		Rparen: token.Pos{
+			file: &token.File{
+				name: "dynamicfield.acorn",
+				base: token.index(1),
+				size: token.index(14),
+				lines: []token.index{
+					token.index(0),
+					token.index(7),
+				},
+			},
+			offset: 162,
+		},
+	}},
+}}

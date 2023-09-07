@@ -1,0 +1,1 @@
+&errors.errorString{s: "can not override field kind number with kind string"}

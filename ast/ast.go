@@ -812,6 +812,7 @@ func (d *EmbedDecl) End() token.Pos { return d.Expr.End() }
 // via Doc and Comment fields.
 type File struct {
 	Filename string
+	Schema   bool
 	Decls    []Decl // top-level declarations; or nil
 	comments
 }

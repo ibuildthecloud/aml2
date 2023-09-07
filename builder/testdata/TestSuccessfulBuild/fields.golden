@@ -10,42 +10,42 @@
 			Comments: eval.Comments{Comments: [][]string{{
 				"a string",
 			}}},
-			Key:   eval.Key{Value: eval.Value{Value: &value.String{String: "stringkey"}}},
-			Value: eval.Value{Value: &value.String{String: "stringvalue"}},
+			Key:   eval.Key{Value: eval.Value{Value: value.String("stringkey")}},
+			Value: eval.Value{Value: value.String("stringvalue")},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"a number"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "number"}}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("number")}},
 			Value:    eval.Value{Value: value.Number("1")},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"an int"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "int"}}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("int")}},
 			Value:    eval.Value{Value: value.Number("1")},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"a float"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "float"}}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("float")}},
 			Value:    eval.Value{Value: value.Number("1.0")},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"a bool"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "bool"}}},
-			Value:    eval.Value{Value: &value.Boolean{Boolean: true}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("bool")}},
+			Value:    eval.Value{Value: value.Boolean(true)},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"a nested"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "nested"}}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("nested")}},
 			Value: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
 				Key: eval.Key{Value: eval.Value{
-					Value: &value.String{String: "obj"},
+					Value: value.String("obj"),
 				}},
 				Value: eval.Value{Value: value.Number("1")},
 			}}},
 		},
 		&eval.KeyValue{
 			Comments: eval.Comments{Comments: [][]string{{"a list"}}},
-			Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "list"}}},
+			Key:      eval.Key{Value: eval.Value{Value: value.String("list")}},
 			Value: &eval.Array{Items: []eval.Expression{
 				eval.Value{Value: value.Number("2")},
 				&eval.Struct{},
@@ -55,7 +55,7 @@
 			Comments: eval.Comments{Comments: [][]string{{"comment on embedded"}}},
 			Expression: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
 				Comments: eval.Comments{Comments: [][]string{{"comment on field"}}},
-				Key:      eval.Key{Value: eval.Value{Value: &value.String{String: "x"}}},
+				Key:      eval.Key{Value: eval.Value{Value: value.String("x")}},
 				Value:    eval.Value{Value: value.Number("1")},
 			}}},
 		},

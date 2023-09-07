@@ -8,7 +8,19 @@ const (
 	ArrayKind  = Kind("array")
 	ObjectKind = Kind("object")
 	FuncKind   = Kind("func")
+	SchemaKind = Kind("schema")
 )
+
+var Kinds = []Kind{
+	NullKind,
+	StringKind,
+	BoolKind,
+	NumberKind,
+	ArrayKind,
+	ObjectKind,
+	FuncKind,
+	SchemaKind,
+}
 
 type Kind string
 
