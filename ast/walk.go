@@ -86,8 +86,7 @@ func walk(v visitor, node Node) {
 		}
 
 	case *Func:
-		walkExprList(v, n.Args)
-		walk(v, n.Ret)
+		walk(v, n.Body)
 
 	case *StructLit:
 		walkDeclList(v, n.Elts)

@@ -1,6 +1,7 @@
 package value
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -10,7 +11,36 @@ func Escape(s string) string {
 	return s[1 : len(s)-1]
 }
 
+func unquoteRaw(s string) (string, error) {
+	if strings.HasPrefix(s, "```") {
+		if !strings.HasSuffix(s, "```") {
+			return "", fmt.Errorf("raw string does not end with ```")
+		}
+		s = s[3 : len(s)-3]
+	} else if strings.HasSuffix(s, "`") {
+		s = s[1 : len(s)-1]
+	} else {
+		return "", fmt.Errorf("raw string does not end with `")
+	}
+
+	buf := strings.Builder{}
+	buf.Grow(len(s))
+
+	for i := 0; i < len(s); i++ {
+		if i < len(s)-1 && s[i] == '\\' && s[i+1] == '`' {
+			buf.WriteRune('`')
+			i++
+		} else {
+			buf.WriteByte(s[i])
+		}
+	}
+	return buf.String(), nil
+}
+
 func Unquote(s string) (string, error) {
+	if strings.HasPrefix(s, "`") {
+		return unquoteRaw(s)
+	}
 	if strings.HasPrefix(s, "\"\"\"") {
 		s = strings.TrimPrefix(s, "\"\"")
 		s = strings.TrimSuffix(s, "\"\"")
@@ -35,7 +65,11 @@ func Unquote(s string) (string, error) {
 		s = strings.Join(lines, "\\n")
 	}
 	if strings.HasPrefix(s, "\"") {
-		return strconv.Unquote(s)
+		ret, err := strconv.Unquote(s)
+		if err != nil {
+			err = fmt.Errorf("%w: %s", err, s)
+		}
+		return ret, err
 	}
 	return s, nil
 }

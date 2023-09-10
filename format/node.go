@@ -321,7 +321,7 @@ func (f *formatter) decl(decl ast.Decl) {
 		}
 		f.print(n.Let, token.LET, blank, nooverride)
 		f.expr(n.Ident)
-		f.print(blank, nooverride, n.Equal, token.BIND, blank)
+		f.print(blank, nooverride, n.Colon, token.BIND, blank)
 		f.expr(n.Expr)
 		f.print(declcomma) // implied
 
@@ -591,7 +591,7 @@ func (f *formatter) clause(clause ast.Clause) {
 		f.print(n.Let, token.LET, blank, nooverride)
 		f.print(indent)
 		f.expr(n.Ident)
-		f.print(blank, nooverride, n.Equal, token.BIND, blank)
+		f.print(blank, nooverride, n.Colon, token.BIND, blank)
 		f.expr(n.Expr)
 		f.markUnindentLine()
 

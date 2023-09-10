@@ -1,0 +1,20 @@
+&eval.Struct{Fields: []eval.Field{
+	&eval.KeyValue{
+		Key: eval.Key{
+			Value: eval.Value{Value: value.String("ml")},
+		},
+		Value: eval.Value{Value: value.String("xxx\n")},
+	},
+	&eval.KeyValue{
+		Key:   eval.Key{Value: eval.Value{Value: value.String("mlinline")}},
+		Value: eval.Value{Value: value.String(`xxxx""x`)},
+	},
+	&eval.KeyValue{
+		Key:   eval.Key{Value: eval.Value{Value: value.String("mlinlineescape")}},
+		Value: eval.Value{Value: value.String(`xxx"""x`)},
+	},
+	&eval.KeyValue{
+		Key:   eval.Key{Value: eval.Value{Value: value.String("mlinlineescape")}},
+		Value: eval.Value{Value: value.String("xxx\\")},
+	}, &eval.KeyValue{Key: eval.Key{Value: eval.Value{Value: value.String("ml")}}, Value: eval.Value{Value: value.String("\nxxx\n    ")}}, &eval.KeyValue{Key: eval.Key{Value: eval.Value{Value: value.String("mlinline")}}, Value: eval.Value{Value: value.String(`xxxx""x`)}}, &eval.KeyValue{Key: eval.Key{Value: eval.Value{Value: value.String("mlinlineescape")}}, Value: eval.Value{Value: value.String("xxx\\```x")}}, &eval.KeyValue{Key: eval.Key{Value: eval.Value{Value: value.String("mlinline")}}, Value: eval.Value{Value: value.String("x\\xxx")}},
+}}

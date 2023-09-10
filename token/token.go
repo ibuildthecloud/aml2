@@ -16,7 +16,9 @@
 // programming language and basic operations on tokens (printing, predicates).
 package token
 
-import "strconv"
+import (
+	"strconv"
+)
 
 // Token is the set of lexical tokens of the CUE configuration language.
 type Token int
@@ -49,11 +51,10 @@ const (
 	LAND // &&
 	LOR  // ||
 
-	BIND // =
-	EQL  // ==
-	LSS  // <
-	GTR  // >
-	NOT  // !
+	EQL // ==
+	LSS // <
+	GTR // >
+	NOT // !
 
 	NEQ // !=
 	LEQ // <=
@@ -81,7 +82,7 @@ const (
 	FOR
 	IN
 	LET
-	FUNC // experimental
+	FUNCTION // experimental
 
 	TRUE
 	FALSE
@@ -110,11 +111,10 @@ var tokens = [...]string{
 	LAND: "&&",
 	LOR:  "||",
 
-	BIND: "=",
-	EQL:  "==",
-	LSS:  "<",
-	GTR:  ">",
-	NOT:  "!",
+	EQL: "==",
+	LSS: "<",
+	GTR: ">",
+	NOT: "!",
 
 	NEQ: "!=",
 	LEQ: "<=",
@@ -139,11 +139,11 @@ var tokens = [...]string{
 	TRUE:  "true",
 	NULL:  "null",
 
-	FOR:  "for",
-	IF:   "if",
-	IN:   "in",
-	LET:  "let",
-	FUNC: "func",
+	FOR:      "for",
+	IF:       "if",
+	IN:       "in",
+	LET:      "let",
+	FUNCTION: "function",
 }
 
 // String returns the string corresponding to the token tok.
@@ -224,6 +224,15 @@ func (tok Token) IsLiteral() bool { return literalBeg < tok && tok < literalEnd 
 // IsOperator returns true for tokens corresponding to operators and
 // delimiters; it returns false otherwise.
 func (tok Token) IsOperator() bool { return operatorBeg < tok && tok < operatorEnd }
+
+func (tok Token) IsIdentTerminator() bool {
+	switch tok {
+	case COLON, OPTION, COMMA, EOF:
+		return true
+	default:
+		return false
+	}
+}
 
 // IsKeyword returns true for tokens corresponding to keywords;
 // it returns false otherwise.

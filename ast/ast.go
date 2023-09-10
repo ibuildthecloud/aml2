@@ -421,8 +421,7 @@ type Interpolation struct {
 // This is an experimental type and the contents will change without notice.
 type Func struct {
 	Func token.Pos // position of "func"
-	Args []Expr    // list of elements; or nil
-	Ret  Expr      // return type, must not be nil
+	Body *StructLit
 
 	comments
 	expr
@@ -564,7 +563,7 @@ type IfClause struct {
 type LetClause struct {
 	Let   token.Pos
 	Ident *Ident
-	Equal token.Pos
+	Colon token.Pos
 	Expr  Expr
 
 	comments
@@ -727,7 +726,7 @@ func (x *Ident) End() token.Pos {
 func (x *BasicLit) End() token.Pos { return x.ValuePos.Add(len(x.Value)) }
 
 func (x *Interpolation) End() token.Pos { return x.Elts[len(x.Elts)-1].Pos() }
-func (x *Func) End() token.Pos          { return x.Ret.End() }
+func (x *Func) End() token.Pos          { return x.Body.End() }
 func (x *StructLit) End() token.Pos {
 	if x.Rbrace == token.NoPos && len(x.Elts) > 0 {
 		return x.Elts[len(x.Elts)-1].End()

@@ -1,4 +1,4 @@
-package builder
+package parser
 
 import (
 	"bytes"
@@ -8,12 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/acorn-io/aml/parser"
 	"github.com/hexops/autogold/v2"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSuccessfulBuild(t *testing.T) {
+func TestParse(t *testing.T) {
 	dir := fmt.Sprintf("testdata/%s", t.Name())
 	files, err := os.ReadDir(dir)
 	require.Nil(t, err)
@@ -26,14 +25,11 @@ func TestSuccessfulBuild(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			require.NoError(t, err)
 
-			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.ParseComments)
-			require.NoError(t, err)
-
-			result, err := Build(ast)
+			ast, err := ParseFile(file.Name(), bytes.NewReader(data), ParseComments)
 			if err != nil {
 				autogold.ExpectFile(t, err)
 			} else {
-				autogold.ExpectFile(t, result)
+				autogold.ExpectFile(t, ast)
 			}
 		})
 	}

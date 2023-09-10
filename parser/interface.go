@@ -45,12 +45,6 @@ var (
 	allErrors        = func(p *parser) {
 		p.mode |= allErrorsMode
 	}
-
-	// AllowPartial allows the parser to be used on a prefix buffer.
-	AllowFunc Option = allowFunc
-	allowFunc        = func(p *parser) {
-		p.mode |= parseFuncsMode
-	}
 )
 
 // A mode value is a set of flags (or 0).
@@ -60,7 +54,6 @@ type mode uint
 
 const (
 	parseCommentsMode mode = 1 << iota // parse comments and add them to AST
-	parseFuncsMode                     // parse function declarations (experimental)
 	traceMode                          // print a trace of parsed productions
 	allErrorsMode                      // report all errors (not just the first 10 on different lines)
 )

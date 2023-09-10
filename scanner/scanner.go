@@ -62,7 +62,6 @@ type Scanner struct {
 type quoteInfo struct {
 	char    rune
 	numChar int
-	numHash int
 }
 
 // Read the next Unicode char into s.ch.
@@ -228,12 +227,8 @@ func (s *Scanner) scanFieldIdentifier() string {
 	}
 	if s.ch == '#' {
 		s.next()
-		// TODO: remove this block to allow #<num>
-		if isDigit(s.ch) {
-			return string(s.src[offs:s.offset])
-		}
 	}
-	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '_' || s.ch == '$' {
+	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '_' {
 		s.next()
 	}
 	return string(s.src[offs:s.offset])
@@ -376,86 +371,15 @@ exit:
 	return tok, string(s.src[offs:s.offset])
 }
 
-// scanEscape parses an escape sequence where rune is the accepted
-// escaped quote. In case of a syntax error, it stops at the offending
-// character (without consuming it) and returns false. Otherwise
-// it returns true.
-//
-// Must be compliant with https://tools.ietf.org/html/rfc4627.
-func (s *Scanner) scanEscape(quote quoteInfo) (ok, interpolation bool) {
-	for i := 0; i < quote.numHash; i++ {
-		if s.ch != '#' {
-			return true, false
-		}
-		s.next()
-	}
-
-	offs := s.offset
-
-	var n int
-	var base, max uint32
-	switch s.ch {
-	case '(':
-		return true, true
-	case 'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '/', quote.char:
-		s.next()
-		return true, false
-	case '0', '1', '2', '3', '4', '5', '6', '7':
-		n, base, max = 3, 8, 255
-	case 'x':
-		s.next()
-		n, base, max = 2, 16, 255
-	case 'u':
-		s.next()
-		n, base, max = 4, 16, unicode.MaxRune
-	case 'U':
-		s.next()
-		n, base, max = 8, 16, unicode.MaxRune
-	default:
-		msg := "unknown escape sequence"
-		if s.ch < 0 {
-			msg = "escape sequence not terminated"
-		}
-		s.errf(offs, msg)
-		return false, false
-	}
-
-	var x uint32
-	for n > 0 {
-		d := uint32(digitVal(s.ch))
-		if d >= base {
-			if s.ch < 0 {
-				s.errf(s.offset, "escape sequence not terminated")
-			} else {
-				s.errf(s.offset, "illegal character %#U in escape sequence", s.ch)
-			}
-			return false, false
-		}
-		x = x*base + d
-		s.next()
-		n--
-	}
-
-	// TODO: this is valid JSON, so remove, but normalize and report an error
-	// if for unmatched surrogate pairs .
-	if x > max {
-		s.errf(offs, "escape sequence is invalid Unicode code point")
-		return false, false
-	}
-
-	return true, false
-}
-
 func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
-	// ", """, ', or ''' opening already consumed
+	// ", """, `, or ``` opening already consumed
 
 	tok := token.STRING
 
 	hasCR := false
 	extra := 0
 	for {
-		ch := s.ch
-		if (quote.numChar != 3 && ch == '\n') || ch < 0 {
+		if (quote.numChar != 3 && s.ch == '\n') || s.ch < 0 {
 			s.errf(offs, "string literal not terminated")
 			lit := s.src[offs:s.offset]
 			if hasCR {
@@ -464,21 +388,27 @@ func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
 			return tok, string(lit)
 		}
 
-		s.next()
-		ch, ok := s.consumeStringClose(ch, quote)
-		if ok {
+		n := s.consumeRepeating(quote.char, quote.numChar)
+		if n == quote.numChar {
 			break
 		}
-		if ch == '\r' && quote.numChar == 3 {
+		if s.ch == '\r' && quote.numChar == 3 {
 			hasCR = true
 		}
-		if ch == '\\' {
-			if _, interpolation := s.scanEscape(quote); interpolation {
-				tok = token.INTERPOLATION
+		if s.ch == '\\' {
+			s.next()
+			if s.ch == quote.char {
+				s.next()
+			} else if quote.char == '"' && s.ch == '(' {
 				extra = 1
+				tok = token.INTERPOLATION
 				s.quoteStack = append(s.quoteStack, quote)
 				break
+			} else if quote.char == '"' {
+				s.next()
 			}
+		} else {
+			s.next()
 		}
 	}
 	lit := s.src[offs : s.offset+extra]
@@ -488,34 +418,14 @@ func (s *Scanner) scanString(offs int, quote quoteInfo) (token.Token, string) {
 	return tok, string(lit)
 }
 
-func (s *Scanner) consumeQuotes(quote rune, max int) (next rune, n int) {
+func (s *Scanner) consumeRepeating(quote rune, max int) (n int) {
 	for ; n < max; n++ {
 		if s.ch != quote {
-			return s.ch, n
+			return n
 		}
 		s.next()
 	}
-	return s.ch, n
-}
-
-func (s *Scanner) consumeStringClose(ch rune, quote quoteInfo) (next rune, atEnd bool) {
-	if quote.char != ch {
-		return ch, false
-	}
-	numChar := quote.numChar
-	n := numChar + quote.numHash
-	want := quote.char
-	for i := 1; i < n; i++ {
-		if i == numChar {
-			want = '#'
-		}
-		if want != s.ch {
-			return ch, false
-		}
-		ch = s.ch
-		s.next()
-	}
-	return s.ch, true
+	return n
 }
 
 func (s *Scanner) scanHashes(maxHash int) int {
@@ -664,22 +574,11 @@ scanAgain:
 	case '0' <= ch && ch <= '9':
 		insertEOL = true
 		tok, lit = s.scanNumber(false)
-	case isLetter(ch), ch == '$', ch == '#':
+	case isLetter(ch), ch == '#':
 		lit = s.scanFieldIdentifier()
-		if len(lit) > 1 {
-			// keywords are longer than one letter - avoid lookup otherwise
-			tok = token.Lookup(lit)
-			insertEOL = true
-			break
-		}
-		if ch != '#' || (s.ch != '\'' && s.ch != '"' && s.ch != '#') {
-			tok = token.IDENT
-			insertEOL = true
-			break
-		}
-		quote.numHash = 1
-		ch = s.ch
-		fallthrough
+		tok = token.Lookup(lit)
+		insertEOL = true
+		break
 	default:
 		s.next() // always make progress
 		switch ch {
@@ -708,38 +607,16 @@ scanAgain:
 			}
 			return p, token.COMMA, "\n"
 
-		case '#':
-			for quote.numHash++; s.ch == '#'; quote.numHash++ {
-				s.next()
-			}
-			ch = s.ch
-			if ch != '\'' && ch != '"' {
-				break
-			}
-			s.next()
-			fallthrough
-		case '"', '\'':
+		case '"', '`':
 			insertEOL = true
+			offs := s.offset - 1
 			quote.char = ch
 			quote.numChar = 1
-			offs := s.offset - 1 - quote.numHash
-			switch _, n := s.consumeQuotes(ch, 2); n {
+			switch n := s.consumeRepeating(ch, 2); n {
 			case 0:
-				quote.numChar = 1
 				tok, lit = s.scanString(offs, quote)
 			case 1:
-				// When the string is surrounded by hashes,
-				// a single leading quote is OK (and part of the string)
-				// e.g. #""hello""#
-				// unless it's succeeded by the correct number of terminating
-				// hash characters
-				// e.g. ##""##
-				if n := s.scanHashes(quote.numHash); n == quote.numHash {
-					// It's the empty string.
-					tok, lit = token.STRING, string(s.src[offs:s.offset])
-				} else {
-					tok, lit = s.scanString(offs, quote)
-				}
+				tok, lit = token.STRING, string(s.src[offs:s.offset])
 			case 2:
 				quote.numChar = 3
 				tok, lit = s.scanString(offs, quote)
@@ -813,8 +690,12 @@ scanAgain:
 			if s.ch == '~' {
 				s.next()
 				tok = token.MAT
+			} else if s.ch == '=' {
+				s.next()
+				tok = token.EQL
 			} else {
-				tok = s.switch2(token.BIND, token.EQL)
+				s.errf(s.file.Offset(pos), "illegal character %#U", ch)
+				tok = token.ILLEGAL
 			}
 		case '!':
 			if s.ch == '~' {
