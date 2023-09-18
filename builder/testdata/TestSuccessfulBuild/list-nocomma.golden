@@ -1,0 +1,17 @@
+&errors.posError{
+	pos: token.Pos{
+		file: &token.File{
+			name: "list-nocomma.acorn",
+			base: token.index(1),
+			size: token.index(6),
+			lines: []token.index{
+				token.index(0),
+			},
+		},
+		offset: 67,
+	},
+	Message: errors.Message{
+		format: "missing ',' in %s",
+		args:   []interface{}{"list literal"},
+	},
+}

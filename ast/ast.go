@@ -1,43 +1,10 @@
-// Copyright 2018 The CUE Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Package ast declares the types used to represent syntax trees for CUE
-// packages.
 package ast
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/acorn-io/aml/literal"
 	"github.com/acorn-io/aml/token"
 )
-
-// ----------------------------------------------------------------------------
-// Interfaces
-//
-// There are three main classes of nodes: expressions, clauses, and declaration
-// nodes. The node names usually match the corresponding CUE spec production
-// names to which they correspond. The node fields correspond to the individual
-// parts of the respective productions.
-//
-// All nodes contain position information marking the beginning of the
-// corresponding source text segment; it is accessible via the Pos accessor
-// method. Nodes may contain additional position info for language constructs
-// where comments may be found between parts of the construct (typically any
-// larger, parenthesized subpart). That position information is needed to
-// properly position comments when printing the construct.
 
 // A Node represents any node in the abstract syntax tree.
 type Node interface {
@@ -51,27 +18,12 @@ type Node interface {
 	commentInfo() *comments
 }
 
-// Name describes the type of n.
-func Name(n Node) string {
-	s := fmt.Sprintf("%T", n)
-	return strings.ToLower(s[strings.Index(s, "ast.")+4:])
-}
-
 func getPos(n Node) token.Pos {
 	p := n.pos()
 	if p == nil {
 		return token.NoPos
 	}
 	return *p
-}
-
-// SetPos sets a node to the given position, if possible.
-func SetPos(n Node, p token.Pos) {
-	ptr := n.pos()
-	if ptr == nil {
-		return
-	}
-	*ptr = p
 }
 
 // SetRelPos sets the relative position of a node without modifying its
@@ -89,43 +41,43 @@ func SetRelPos(n Node, p token.RelPos) {
 // An Expr is implemented by all expression nodes.
 type Expr interface {
 	Node
-	declNode() // An expression can be used as a declaration.
-	exprNode()
+	IsExpr() bool
 }
 
-type expr struct{ decl }
+type isExpr struct{}
 
-func (expr) exprNode() {}
+func (isExpr) IsExpr() bool { return true }
 
 // A Decl node is implemented by all declarations.
 type Decl interface {
 	Node
-	declNode()
+	IsDecl() bool
 }
 
-type decl struct{}
+type isDecl struct{}
 
-func (decl) declNode() {}
+func (isDecl) IsDecl() bool { return true }
 
 // A Label is any production that can be used as a LHS label.
 type Label interface {
 	Node
-	labelNode()
+
+	IsLabel() bool
 }
 
-type label struct{}
+type isLabel struct{}
 
-func (l label) labelNode() {}
+func (l isLabel) IsLabel() bool { return true }
 
 // Clause nodes are part of comprehensions.
 type Clause interface {
 	Node
-	clauseNode()
+	IsClause() bool
 }
 
-type clause struct{}
+type isClause struct{}
 
-func (clause) clauseNode() {}
+func (isClause) IsClause() bool { return true }
 
 // Comments
 
@@ -180,10 +132,9 @@ type Comment struct {
 func (c *Comment) Comments() []*CommentGroup { return nil }
 func (c *Comment) AddComment(*CommentGroup)  {}
 func (c *Comment) commentInfo() *comments    { return nil }
-
-func (c *Comment) Pos() token.Pos  { return c.Slash }
-func (c *Comment) pos() *token.Pos { return &c.Slash }
-func (c *Comment) End() token.Pos  { return c.Slash.Add(len(c.Text)) }
+func (c *Comment) Pos() token.Pos            { return c.Slash }
+func (c *Comment) pos() *token.Pos           { return &c.Slash }
+func (c *Comment) End() token.Pos            { return c.Slash.Add(len(c.Text)) }
 
 // A CommentGroup represents a sequence of comments
 // with no other tokens and no empty lines between.
@@ -199,13 +150,12 @@ type CommentGroup struct {
 	Position int8
 	List     []*Comment // len(List) > 0
 
-	decl
+	isDecl
 }
 
-func (g *CommentGroup) Pos() token.Pos  { return getPos(g) }
-func (g *CommentGroup) pos() *token.Pos { return g.List[0].pos() }
-func (g *CommentGroup) End() token.Pos  { return g.List[len(g.List)-1].End() }
-
+func (g *CommentGroup) Pos() token.Pos            { return getPos(g) }
+func (g *CommentGroup) pos() *token.Pos           { return g.List[0].pos() }
+func (g *CommentGroup) End() token.Pos            { return g.List[len(g.List)-1].End() }
 func (g *CommentGroup) Comments() []*CommentGroup { return nil }
 func (g *CommentGroup) AddComment(*CommentGroup)  {}
 func (g *CommentGroup) commentInfo() *comments    { return nil }
@@ -281,41 +231,22 @@ func (g *CommentGroup) Text() string {
 
 // A Field represents a field declaration in a struct.
 type Field struct {
-	Label      Label       // must have at least one element.
-	Constraint token.Token // token.ILLEGAL, token.OPTION, or token.NOT
-
-	// No TokenPos: Value must be an StructLit with one field.
-	TokenPos token.Pos
-
-	Value Expr // the value associated with this field.
+	Label      Label
+	Constraint token.Token // token.ILLEGAL (no constraint), token.OPTION
+	Colon      token.Pos
+	// Match is set to the position of the match token if this is a regexp matching field and Label will be a string
+	// token that should be interpreted as a regexp
+	Match token.Pos
+	Value Expr
 
 	comments
-	decl
+	isDecl
 }
 
 func (d *Field) Pos() token.Pos  { return d.Label.Pos() }
 func (d *Field) pos() *token.Pos { return d.Label.pos() }
 func (d *Field) End() token.Pos {
 	return d.Value.End()
-}
-
-// TODO: make Alias a type of Field. This is possible now we have different
-// separator types.
-
-// A Comprehension node represents a comprehension declaration.
-type Comprehension struct {
-	Clauses []Clause // There must be at least one clause.
-	Value   Expr     // Must be a struct TODO: change to Struct
-
-	comments
-	decl
-	expr // TODO: only allow Comprehension in "Embedding" productions.
-}
-
-func (x *Comprehension) Pos() token.Pos  { return getPos(x) }
-func (x *Comprehension) pos() *token.Pos { return x.Clauses[0].pos() }
-func (x *Comprehension) End() token.Pos {
-	return x.Value.End()
 }
 
 // ----------------------------------------------------------------------------
@@ -326,106 +257,75 @@ func (x *Comprehension) End() token.Pos {
 
 // A BadExpr node is a placeholder for expressions containing
 // syntax errors for which no correct expression nodes can be
-// created. This is different from an ErrorExpr which represents
-// an explicitly marked error in the source.
+// created.
 type BadExpr struct {
 	From, To token.Pos // position range of bad expression
 
 	comments
-	expr
+	isExpr
 }
 
+func (x *BadExpr) Pos() token.Pos  { return x.From }
+func (x *BadExpr) pos() *token.Pos { return &x.From }
+func (x *BadExpr) End() token.Pos  { return x.To }
+
 // An Ident node represents an left-hand side identifier,
-// including the underscore "_" identifier to represent top.
 type Ident struct {
 	NamePos token.Pos // identifier position
 
-	// This LHS path element may be an identifier. Possible forms:
-	//  foo:    a normal identifier
-	//  "foo":  JSON compatible
 	Name string
 
 	Scope Node // scope in which node was found or nil if referring directly
 	Node  Node
 
 	comments
-	label
-	expr
+	isLabel
+	isExpr
 }
+
+func (x *Ident) Pos() token.Pos  { return x.NamePos }
+func (x *Ident) pos() *token.Pos { return &x.NamePos }
+func (x *Ident) End() token.Pos  { return x.NamePos.Add(len(x.Name)) }
 
 // A BasicLit node represents a literal of basic type.
 type BasicLit struct {
 	ValuePos token.Pos   // literal position
-	Kind     token.Token // INT, FLOAT, DURATION, or STRING
+	Kind     token.Token // INT, FLOAT, or STRING
 	Value    string      // literal string; e.g. 42, 0x7f, 3.14, 1_234_567, 1e-9, 2.4i, 'a', '\x7f', "foo", or '\m\n\o'
 
 	comments
-	expr
-	label
+	isExpr
+	isLabel
 }
 
-// TODO: introduce and use NewLabel and NewBytes and perhaps NewText (in the
-// later case NewString would return a string or bytes type) to distinguish from
-// NewString. Consider how to pass indentation information.
+func (x *BasicLit) Pos() token.Pos  { return x.ValuePos }
+func (x *BasicLit) pos() *token.Pos { return &x.ValuePos }
+func (x *BasicLit) End() token.Pos  { return x.ValuePos.Add(len(x.Value)) }
 
-// NewString creates a new BasicLit with a string value without position.
-// It quotes the given string.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewString(str string) *BasicLit {
-	str = literal.String.Quote(str)
-	return &BasicLit{Kind: token.STRING, ValuePos: token.NoPos, Value: str}
-}
-
-// NewNull creates a new BasicLit configured to be a null value.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewNull() *BasicLit {
-	return &BasicLit{Kind: token.NULL, Value: "null"}
-}
-
-// NewLit creates a new BasicLit with from a token type and string without
-// position.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewLit(tok token.Token, s string) *BasicLit {
-	return &BasicLit{Kind: tok, Value: s}
-}
-
-// NewBool creates a new BasicLit with a bool value without position.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewBool(b bool) *BasicLit {
-	x := &BasicLit{}
-	if b {
-		x.Kind = token.TRUE
-		x.Value = "true"
-	} else {
-		x.Kind = token.FALSE
-		x.Value = "false"
-	}
-	return x
-}
-
-// TODO:
-// - use CUE-specific quoting (hoist functionality in export)
-// - NewBytes
-
-// A Interpolation node represents a string or bytes interpolation.
 type Interpolation struct {
 	Elts []Expr // interleaving of strings and expressions.
 
 	comments
-	expr
-	label
+	isExpr
+	isLabel
 }
 
-// A Func node represents a function type.
-//
-// This is an experimental type and the contents will change without notice.
+func (x *Interpolation) Pos() token.Pos  { return x.Elts[0].Pos() }
+func (x *Interpolation) pos() *token.Pos { return x.Elts[0].pos() }
+func (x *Interpolation) End() token.Pos  { return x.Elts[len(x.Elts)-1].Pos() }
+
+// A Func node represents a function expression.
 type Func struct {
 	Func token.Pos // position of "func"
 	Body *StructLit
 
 	comments
-	expr
+	isExpr
 }
+
+func (x *Func) Pos() token.Pos  { return x.Func }
+func (x *Func) pos() *token.Pos { return &x.Func }
+func (x *Func) End() token.Pos  { return x.Body.End() }
 
 // A StructLit node represents a literal struct.
 type StructLit struct {
@@ -434,130 +334,155 @@ type StructLit struct {
 	Rbrace token.Pos // position of "}"
 
 	comments
-	expr
+	isExpr
 }
 
-// NewStruct creates a struct from the given fields.
-//
-// A field is either a *Field, an *Ellipsis, *LetClause, a *CommentGroup, or a
-// Label, optionally followed by a token.OPTION or token.NOT to indicate the
-// field is optional or required, followed by an expression for the field value.
-//
-// It will panic if a values not matching these patterns are given. Useful for
-// ASTs generated by code other than the CUE parser.
-func NewStruct(fields ...interface{}) *StructLit {
-	s := &StructLit{
-		// Set default positions so that comment attachment is as expected.
-		Lbrace: token.NoSpace.Pos(),
+func (x *StructLit) Pos() token.Pos { return getPos(x) }
+func (x *StructLit) pos() *token.Pos {
+	if x.Lbrace == token.NoPos && len(x.Elts) > 0 {
+		return x.Elts[0].pos()
 	}
-	for i := 0; i < len(fields); i++ {
-		var (
-			label      Label
-			constraint = token.ILLEGAL
-			expr       Expr
-		)
-
-		switch x := fields[i].(type) {
-		case *Field:
-			s.Elts = append(s.Elts, x)
-			continue
-		case *CommentGroup:
-			s.Elts = append(s.Elts, x)
-			continue
-		case *LetClause:
-			s.Elts = append(s.Elts, x)
-			continue
-		case *embedding:
-			s.Elts = append(s.Elts, (*EmbedDecl)(x))
-			continue
-		case Label:
-			label = x
-		case string:
-			label = NewString(x)
-		default:
-			panic(fmt.Sprintf("unsupported label type %T", x))
-		}
-
-	inner:
-		for i++; i < len(fields); i++ {
-			switch x := (fields[i]).(type) {
-			case Expr:
-				expr = x
-				break inner
-			case token.Token:
-				switch x {
-				case token.OPTION:
-					constraint = x
-				case token.NOT:
-					constraint = x
-				case token.COLON, token.ILLEGAL:
-				default:
-					panic(fmt.Sprintf("invalid token %s", x))
-				}
-			default:
-				panic(fmt.Sprintf("unsupported expression type %T", x))
-			}
-		}
-		if expr == nil {
-			panic("label not matched with expression")
-		}
-		s.Elts = append(s.Elts, &Field{
-			Label:      label,
-			Constraint: constraint,
-			Value:      expr,
-		})
+	return &x.Lbrace
+}
+func (x *StructLit) End() token.Pos {
+	if x.Rbrace == token.NoPos && len(x.Elts) > 0 {
+		return x.Elts[len(x.Elts)-1].End()
 	}
-	return s
+	return x.Rbrace.Add(1)
 }
 
-// Embed can be used in conjunction with NewStruct to embed values.
-func Embed(x Expr) *embedding {
-	return (*embedding)(&EmbedDecl{Expr: x})
+// A SchemaLit node represents a literal schema definition.
+type SchemaLit struct {
+	Schema token.Pos // position of token.SCHEMA
+	Struct *StructLit
+
+	comments
+	isExpr
 }
 
-type embedding EmbedDecl
+func (x *SchemaLit) Pos() token.Pos { return getPos(x) }
+func (x *SchemaLit) pos() *token.Pos {
+	return &x.Struct.Lbrace
+}
+func (x *SchemaLit) End() token.Pos {
+	return x.Struct.End()
+}
 
 // A ListLit node represents a literal list.
 type ListLit struct {
 	Lbrack token.Pos // position of "["
-
-	// TODO: change to embedding or similar.
 	Elts   []Expr    // list of composite elements; or nil
 	Rbrack token.Pos // position of "]"
 
 	comments
-	expr
-	label
+	isExpr
 }
 
-// NewList creates a list of Expressions.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewList(exprs ...Expr) *ListLit {
-	return &ListLit{Elts: exprs}
+func (x *ListLit) Pos() token.Pos  { return x.Lbrack }
+func (x *ListLit) pos() *token.Pos { return &x.Lbrack }
+func (x *ListLit) End() token.Pos  { return x.Rbrack.Add(1) }
+
+// A ListComprehension node represents literal list with and embedded for expression
+type ListComprehension struct {
+	Lbrack token.Pos // position of "["
+	For    token.Pos
+	Rbrack token.Pos // position of "]"
+	Clause *ForClause
+	Value  Expr
+
+	comments
+	isExpr
 }
+
+func (x *ListComprehension) Pos() token.Pos  { return x.Lbrack }
+func (x *ListComprehension) pos() *token.Pos { return &x.Lbrack }
+func (x *ListComprehension) End() token.Pos  { return x.Rbrack.Add(1) }
+
+// A For node represents a for expression
+type For struct {
+	For    token.Pos
+	Clause *ForClause
+	Struct *StructLit
+
+	comments
+	isExpr
+}
+
+func (x *For) Pos() token.Pos  { return x.For }
+func (x *For) pos() *token.Pos { return &x.For }
+func (x *For) End() token.Pos  { return x.Struct.End() }
 
 // A ForClause node represents a for clause in a comprehension.
 type ForClause struct {
-	For token.Pos
-	Key *Ident // allow pattern matching?
-	// TODO: change to Comma
-	Colon  token.Pos
-	Value  *Ident // allow pattern matching?
+	Key    *Ident
+	Comma  token.Pos
+	Value  *Ident
 	In     token.Pos
 	Source Expr
 
 	comments
-	clause
+	isClause
+}
+
+func (x *ForClause) Pos() token.Pos {
+	if x.Key == nil {
+		return x.Value.Pos()
+	}
+	return x.Key.Pos()
+}
+func (x *ForClause) pos() *token.Pos {
+	if x.Key == nil {
+		return x.Value.pos()
+	}
+	return x.Key.pos()
+}
+func (x *ForClause) End() token.Pos { return x.Source.End() }
+
+// A If node represents an if expression
+type If struct {
+	If        token.Pos
+	Condition *IfClause
+	Struct    *StructLit
+	Else      *Else
+
+	comments
+	isExpr
+}
+
+func (x *If) Pos() token.Pos  { return x.If }
+func (x *If) pos() *token.Pos { return &x.If }
+func (x *If) End() token.Pos  { return x.Struct.End() }
+
+// An Else node represents an else or else if expression after an if expression
+type Else struct {
+	Else   token.Pos
+	If     *If
+	Struct *StructLit
+
+	comments
+	isExpr
+}
+
+func (x *Else) Pos() token.Pos  { return x.Else }
+func (x *Else) pos() *token.Pos { return &x.Else }
+func (x *Else) End() token.Pos {
+	if x.If != nil {
+		return x.If.End()
+	}
+	return x.Struct.End()
 }
 
 // A IfClause node represents an if guard clause in a comprehension.
 type IfClause struct {
-	If        token.Pos
 	Condition Expr
 
 	comments
-	clause
+	isClause
 }
+
+func (x *IfClause) Pos() token.Pos  { return x.Condition.Pos() }
+func (x *IfClause) pos() *token.Pos { return x.Condition.pos() }
+func (x *IfClause) End() token.Pos  { return x.Condition.End() }
 
 // A LetClause node represents a let clause in a comprehension.
 type LetClause struct {
@@ -567,9 +492,13 @@ type LetClause struct {
 	Expr  Expr
 
 	comments
-	clause
-	decl
+	isClause
+	isDecl
 }
+
+func (x *LetClause) Pos() token.Pos  { return x.Let }
+func (x *LetClause) pos() *token.Pos { return &x.Let }
+func (x *LetClause) End() token.Pos  { return x.Expr.End() }
 
 // A ParenExpr node represents a parenthesized expression.
 type ParenExpr struct {
@@ -578,9 +507,24 @@ type ParenExpr struct {
 	Rparen token.Pos // position of ")"
 
 	comments
-	expr
-	label
+	isExpr
 }
+
+func (x *ParenExpr) Pos() token.Pos  { return x.Lparen }
+func (x *ParenExpr) pos() *token.Pos { return &x.Lparen }
+func (x *ParenExpr) End() token.Pos  { return x.Rparen.Add(1) }
+
+type DefaultExpr struct {
+	Default token.Pos // position of default token
+	X       Expr      // expression to apply default to
+
+	comments
+	isExpr
+}
+
+func (x *DefaultExpr) Pos() token.Pos  { return x.Default }
+func (x *DefaultExpr) pos() *token.Pos { return &x.Default }
+func (x *DefaultExpr) End() token.Pos  { return x.X.End() }
 
 // A SelectorExpr node represents an expression followed by a selector.
 type SelectorExpr struct {
@@ -588,17 +532,12 @@ type SelectorExpr struct {
 	Sel Label // field selector
 
 	comments
-	expr
+	isExpr
 }
 
-// NewSel creates a sequence of selectors.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewSel(x Expr, sel ...string) Expr {
-	for _, s := range sel {
-		x = &SelectorExpr{X: x, Sel: NewIdent(s)}
-	}
-	return x
-}
+func (x *SelectorExpr) Pos() token.Pos  { return x.X.Pos() }
+func (x *SelectorExpr) pos() *token.Pos { return x.X.pos() }
+func (x *SelectorExpr) End() token.Pos  { return x.Sel.End() }
 
 // An IndexExpr node represents an expression followed by an index.
 type IndexExpr struct {
@@ -608,8 +547,12 @@ type IndexExpr struct {
 	Rbrack token.Pos // position of "]"
 
 	comments
-	expr
+	isExpr
 }
+
+func (x *IndexExpr) Pos() token.Pos  { return x.X.Pos() }
+func (x *IndexExpr) pos() *token.Pos { return x.X.pos() }
+func (x *IndexExpr) End() token.Pos  { return x.Rbrack.Add(1) }
 
 // An SliceExpr node represents an expression followed by slice indices.
 type SliceExpr struct {
@@ -620,25 +563,27 @@ type SliceExpr struct {
 	Rbrack token.Pos // position of "]"
 
 	comments
-	expr
+	isExpr
 }
+
+func (x *SliceExpr) Pos() token.Pos  { return x.X.Pos() }
+func (x *SliceExpr) pos() *token.Pos { return x.X.pos() }
+func (x *SliceExpr) End() token.Pos  { return x.Rbrack.Add(1) }
 
 // A CallExpr node represents an expression followed by an argument list.
 type CallExpr struct {
 	Fun    Expr      // function expression
 	Lparen token.Pos // position of "("
-	Args   []Expr    // function arguments; or nil
+	Args   []Decl    // function arguments; or nil
 	Rparen token.Pos // position of ")"
 
 	comments
-	expr
+	isExpr
 }
 
-// NewCall creates a new CallExpr.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewCall(fun Expr, args ...Expr) *CallExpr {
-	return &CallExpr{Fun: fun, Args: args}
-}
+func (x *CallExpr) Pos() token.Pos  { return x.Fun.Pos() }
+func (x *CallExpr) pos() *token.Pos { return x.Fun.pos() }
+func (x *CallExpr) End() token.Pos  { return x.Rparen.Add(1) }
 
 // A UnaryExpr node represents a unary expression.
 type UnaryExpr struct {
@@ -647,8 +592,12 @@ type UnaryExpr struct {
 	X     Expr        // operand
 
 	comments
-	expr
+	isExpr
 }
+
+func (x *UnaryExpr) Pos() token.Pos  { return x.OpPos }
+func (x *UnaryExpr) pos() *token.Pos { return &x.OpPos }
+func (x *UnaryExpr) End() token.Pos  { return x.X.End() }
 
 // A BinaryExpr node represents a binary expression.
 type BinaryExpr struct {
@@ -658,92 +607,12 @@ type BinaryExpr struct {
 	Y     Expr        // right operand
 
 	comments
-	expr
+	isExpr
 }
 
-// NewBinExpr creates for list of expressions of length 2 or greater a chained
-// binary expression of the form (((x1 op x2) op x3) ...). For lists of length
-// 1 it returns the expression itself. It panics for empty lists.
-// Useful for ASTs generated by code other than the CUE parser.
-func NewBinExpr(op token.Token, operands ...Expr) Expr {
-	if len(operands) == 0 {
-		return nil
-	}
-	expr := operands[0]
-	for _, e := range operands[1:] {
-		expr = &BinaryExpr{X: expr, Op: op, Y: e}
-	}
-	return expr
-}
-
-// token.Pos and End implementations for expression/type nodes.
-
-func (x *BadExpr) Pos() token.Pos        { return x.From }
-func (x *BadExpr) pos() *token.Pos       { return &x.From }
-func (x *Ident) Pos() token.Pos          { return x.NamePos }
-func (x *Ident) pos() *token.Pos         { return &x.NamePos }
-func (x *BasicLit) Pos() token.Pos       { return x.ValuePos }
-func (x *BasicLit) pos() *token.Pos      { return &x.ValuePos }
-func (x *Interpolation) Pos() token.Pos  { return x.Elts[0].Pos() }
-func (x *Interpolation) pos() *token.Pos { return x.Elts[0].pos() }
-func (x *Func) Pos() token.Pos           { return x.Func }
-func (x *Func) pos() *token.Pos          { return &x.Func }
-func (x *StructLit) Pos() token.Pos      { return getPos(x) }
-func (x *StructLit) pos() *token.Pos {
-	if x.Lbrace == token.NoPos && len(x.Elts) > 0 {
-		return x.Elts[0].pos()
-	}
-	return &x.Lbrace
-}
-
-func (x *ListLit) Pos() token.Pos       { return x.Lbrack }
-func (x *ListLit) pos() *token.Pos      { return &x.Lbrack }
-func (x *LetClause) Pos() token.Pos     { return x.Let }
-func (x *LetClause) pos() *token.Pos    { return &x.Let }
-func (x *ForClause) Pos() token.Pos     { return x.For }
-func (x *ForClause) pos() *token.Pos    { return &x.For }
-func (x *IfClause) Pos() token.Pos      { return x.If }
-func (x *IfClause) pos() *token.Pos     { return &x.If }
-func (x *ParenExpr) Pos() token.Pos     { return x.Lparen }
-func (x *ParenExpr) pos() *token.Pos    { return &x.Lparen }
-func (x *SelectorExpr) Pos() token.Pos  { return x.X.Pos() }
-func (x *SelectorExpr) pos() *token.Pos { return x.X.pos() }
-func (x *IndexExpr) Pos() token.Pos     { return x.X.Pos() }
-func (x *IndexExpr) pos() *token.Pos    { return x.X.pos() }
-func (x *SliceExpr) Pos() token.Pos     { return x.X.Pos() }
-func (x *SliceExpr) pos() *token.Pos    { return x.X.pos() }
-func (x *CallExpr) Pos() token.Pos      { return x.Fun.Pos() }
-func (x *CallExpr) pos() *token.Pos     { return x.Fun.pos() }
-func (x *UnaryExpr) Pos() token.Pos     { return x.OpPos }
-func (x *UnaryExpr) pos() *token.Pos    { return &x.OpPos }
-func (x *BinaryExpr) Pos() token.Pos    { return x.X.Pos() }
-func (x *BinaryExpr) pos() *token.Pos   { return x.X.pos() }
-
-func (x *BadExpr) End() token.Pos { return x.To }
-func (x *Ident) End() token.Pos {
-	return x.NamePos.Add(len(x.Name))
-}
-func (x *BasicLit) End() token.Pos { return x.ValuePos.Add(len(x.Value)) }
-
-func (x *Interpolation) End() token.Pos { return x.Elts[len(x.Elts)-1].Pos() }
-func (x *Func) End() token.Pos          { return x.Body.End() }
-func (x *StructLit) End() token.Pos {
-	if x.Rbrace == token.NoPos && len(x.Elts) > 0 {
-		return x.Elts[len(x.Elts)-1].End()
-	}
-	return x.Rbrace.Add(1)
-}
-func (x *ListLit) End() token.Pos      { return x.Rbrack.Add(1) }
-func (x *LetClause) End() token.Pos    { return x.Expr.End() }
-func (x *ForClause) End() token.Pos    { return x.Source.End() }
-func (x *IfClause) End() token.Pos     { return x.Condition.End() }
-func (x *ParenExpr) End() token.Pos    { return x.Rparen.Add(1) }
-func (x *SelectorExpr) End() token.Pos { return x.Sel.End() }
-func (x *IndexExpr) End() token.Pos    { return x.Rbrack.Add(1) }
-func (x *SliceExpr) End() token.Pos    { return x.Rbrack.Add(1) }
-func (x *CallExpr) End() token.Pos     { return x.Rparen.Add(1) }
-func (x *UnaryExpr) End() token.Pos    { return x.X.End() }
-func (x *BinaryExpr) End() token.Pos   { return x.Y.End() }
+func (x *BinaryExpr) Pos() token.Pos  { return x.X.Pos() }
+func (x *BinaryExpr) pos() *token.Pos { return x.X.pos() }
+func (x *BinaryExpr) End() token.Pos  { return x.Y.End() }
 
 // ----------------------------------------------------------------------------
 // Convenience functions for Idents
@@ -751,12 +620,12 @@ func (x *BinaryExpr) End() token.Pos   { return x.Y.End() }
 // NewIdent creates a new Ident without position.
 // Useful for ASTs generated by code other than the CUE parser.
 func NewIdent(name string) *Ident {
-	return &Ident{token.NoPos, name, nil, nil, comments{}, label{}, expr{}}
+	return &Ident{token.NoPos, name, nil, nil, comments{}, isLabel{}, isExpr{}}
 }
 
-func (id *Ident) String() string {
-	if id != nil {
-		return id.Name
+func (x *Ident) String() string {
+	if x != nil {
+		return x.Name
 	}
 	return "<nil>"
 }
@@ -771,13 +640,12 @@ type BadDecl struct {
 	From, To token.Pos // position range of bad declaration
 
 	comments
-	decl
+	isDecl
 }
 
-type Spec interface {
-	Node
-	specNode()
-}
+func (d *BadDecl) Pos() token.Pos  { return d.From }
+func (d *BadDecl) pos() *token.Pos { return &d.From }
+func (d *BadDecl) End() token.Pos  { return d.To }
 
 // An EmbedDecl node represents a single expression used as a declaration.
 // The expressions in this declaration is what will be emitted as
@@ -788,18 +656,12 @@ type EmbedDecl struct {
 	Expr Expr
 
 	comments
-	decl
+	isDecl
 }
 
-// Pos and End implementations for declaration nodes.
-
-func (d *BadDecl) Pos() token.Pos    { return d.From }
-func (d *BadDecl) pos() *token.Pos   { return &d.From }
 func (d *EmbedDecl) Pos() token.Pos  { return d.Expr.Pos() }
 func (d *EmbedDecl) pos() *token.Pos { return d.Expr.pos() }
-
-func (d *BadDecl) End() token.Pos   { return d.To }
-func (d *EmbedDecl) End() token.Pos { return d.Expr.End() }
+func (d *EmbedDecl) End() token.Pos  { return d.Expr.End() }
 
 // ----------------------------------------------------------------------------
 // Files and packages
@@ -816,28 +678,9 @@ type File struct {
 	comments
 }
 
-// Preamble returns the declarations of the preamble.
-func (f *File) Preamble() []Decl {
-	p := 0
-outer:
-	for _, d := range f.Decls {
-		switch d.(type) {
-		default:
-			break outer
-
-		case *CommentGroup:
-		}
-	}
-	return f.Decls[:p]
-}
-
 func (f *File) Pos() token.Pos {
 	if len(f.Decls) > 0 {
 		return f.Decls[0].Pos()
-	}
-	if f.Filename != "" {
-		// TODO. Do something more principled and efficient.
-		return token.NewFile(f.Filename, -1, 1).Pos(0, 0)
 	}
 	return token.NoPos
 }
@@ -845,9 +688,6 @@ func (f *File) Pos() token.Pos {
 func (f *File) pos() *token.Pos {
 	if len(f.Decls) > 0 {
 		return f.Decls[0].pos()
-	}
-	if f.Filename != "" {
-		return nil
 	}
 	return nil
 }

@@ -1,14 +1,15 @@
 ml: """
     xxx
     """
+quotes: `"""`
 mlinline: """xxxx\"\"x"""
 mlinlineescape: """xxx\"\"\"x"""
-mlinlineescape: """xxx\\"""
+mlinlineescape: "xxx\(quotes)x"
+mlinlineescape4: """xxx\\"""
 
-ml: ```
-xxx
-    ```
-mlinline: ```xxxx""x```
-mlinlineescape: ```xxx\\```x```
+ml: ```xxx
+```
+mlinline2: ```xxxx""x```
+mlinlineescape2: ```xxx\\```x```
 
-mlinline: `x\xxx`
+mlinliner3: `x\xxx`

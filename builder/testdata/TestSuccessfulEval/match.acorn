@@ -1,0 +1,12 @@
+Test: schema {
+	match ".*": 2
+	a: number
+}
+
+{
+	Test
+	{
+		f: 2
+		a: 3
+	}
+}

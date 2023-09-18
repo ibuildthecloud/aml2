@@ -3,24 +3,63 @@ package value
 import "fmt"
 
 func mergeNative(left, right Value) (Value, error) {
-	if merged, err := mergeNull(left, right); merged != nil || err != nil {
-		return merged, err
+	if err := checkType(left, right); err != nil {
+		return nil, err
+	}
+	bValue, err := Eq(left, right)
+	if err != nil {
+		return nil, err
+	}
+	b, err := ToBool(bValue)
+	if err != nil {
+		return nil, err
+	}
+	if !b {
+		return nil, fmt.Errorf("can not override value %s with %s", left, right)
 	}
 	return right, nil
 }
 
-func mergeNull(left, right Value) (Value, error) {
-	if left.Kind() == SchemaKind && right.Kind() == ObjectKind {
-		return nil, nil
+type Merger interface {
+	Merge(val Value) (Value, error)
+}
+
+func Merge(values ...Value) (result Value, err error) {
+	for _, item := range values {
+		if result == nil {
+			result = item
+		} else {
+			if m, ok := result.(Merger); ok {
+				result, err = m.Merge(item)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				result, err = mergeNative(result, item)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
-	if left.Kind() == NullKind {
-		return right, nil
+
+	return result, nil
+}
+
+func assertType(val Value, kind Kind) error {
+	if val == nil {
+		return fmt.Errorf("expected kind %s, got nil", kind)
 	}
-	if right.Kind() == NullKind {
-		return left, nil
+	if val.Kind() != kind {
+		return fmt.Errorf("expected kind %s, got %s (value: %s)", kind, val.Kind(), val)
 	}
+	return nil
+}
+
+func checkType(left, right Value) error {
 	if left.Kind() != right.Kind() {
-		return nil, fmt.Errorf("can not override field kind %s with kind %s", left.Kind(), right.Kind())
+		return fmt.Errorf("can not override field %s %s with %s %s",
+			left.Kind(), left, right.Kind(), right)
 	}
-	return nil, nil
+	return nil
 }

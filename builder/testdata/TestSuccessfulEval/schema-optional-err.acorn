@@ -1,4 +1,4 @@
-#Schema: {
+Schema: schema {
     foo?: 1
     bar: "hi"
 }

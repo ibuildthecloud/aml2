@@ -35,19 +35,25 @@ func NewValue(v any) Value {
 		return NewObject(x)
 	case []any:
 		return NewArray(x)
+	case Contract:
+		return NewObjectSchema(x)
 	default:
 		panic(fmt.Sprintf("invalid value: %T", v))
 	}
 }
 
 func ToKind(v Value, kind Kind) (any, error) {
-	if v == nil {
-		return "", fmt.Errorf("expected %s but got nil", kind)
+	if err := assertType(v, kind); err != nil {
+		return nil, err
 	}
-	if v.Kind() != kind {
-		return "", fmt.Errorf("expected %s but got kind %s", kind, v.Kind())
+	nv, ok, err := NativeValue(v)
+	if err != nil {
+		return nil, err
 	}
-	return v.NativeValue(), nil
+	if !ok {
+		return nil, fmt.Errorf("value of kind %s did not produce a native value as expected", kind)
+	}
+	return nv, nil
 }
 
 func ToValueArray(v Value) ([]Value, error) {
@@ -109,10 +115,10 @@ func ToFloat(v Value) (float64, error) {
 }
 
 type LookupValue interface {
-	LookupValue(key string) (Value, bool, error)
+	LookupValue(key Value) (Value, bool, error)
 }
 
-func Lookup(left Value, key string) (Value, bool, error) {
+func Lookup(left, key Value) (Value, bool, error) {
 	adder, ok := left.(LookupValue)
 	if ok {
 		return adder.LookupValue(key)
@@ -121,10 +127,13 @@ func Lookup(left Value, key string) (Value, bool, error) {
 }
 
 type Indexer interface {
-	Index(key int64) (Value, bool, error)
+	Index(key Value) (Value, bool, error)
 }
 
-func Index(left Value, key int64) (Value, bool, error) {
+func Index(left, key Value) (Value, bool, error) {
+	if undef := IsUndefined(left, key); undef != nil {
+		return undef, false, nil
+	}
 	if index, ok := left.(Indexer); ok {
 		return index.Index(key)
 	}
@@ -132,23 +141,64 @@ func Index(left Value, key int64) (Value, bool, error) {
 }
 
 type Lener interface {
-	Len() (int64, error)
+	Len() (Value, error)
 }
 
-func Len(left Value) (int64, error) {
+func Len(left Value) (Value, error) {
+	if undef := IsUndefined(left); undef != nil {
+		return undef, nil
+	}
 	if index, ok := left.(Lener); ok {
 		return index.Len()
 	}
-	return 0, fmt.Errorf("value kind %s does not support len operation", left.Kind())
+	return nil, fmt.Errorf("value kind %s does not support len operation", left.Kind())
 }
 
 type Slicer interface {
-	Slice(start, end int64) (Value, bool, error)
+	Slice(start, end int) (Value, bool, error)
 }
 
-func Slice(left Value, start, end int64) (Value, bool, error) {
+// IsUndefined is a small helper to check if any of the passed values are undefined
+func IsUndefined(vals ...Value) Value {
+	for _, val := range vals {
+		if val != nil && val.Kind() == UndefinedKind {
+			return val
+		}
+	}
+	return nil
+}
+
+func Slice(left, start, end Value) (Value, bool, error) {
+	if undef := IsUndefined(left, start, end); undef != nil {
+		return undef, true, nil
+	}
 	if index, ok := left.(Slicer); ok {
-		return index.Slice(start, end)
+		var (
+			startInt, endInt int64
+			err              error
+		)
+		if start != nil {
+			startInt, err = ToInt(start)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		if end == nil {
+			lenVal, err := Len(left)
+			if err != nil {
+				return nil, false, err
+			}
+			endInt, err = ToInt(lenVal)
+			if err != nil {
+				return nil, false, err
+			}
+		} else {
+			endInt, err = ToInt(end)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		return index.Slice(int(startInt), int(endInt))
 	}
 	return nil, false, fmt.Errorf("value kind %s does not support slice operation", left.Kind())
 }
@@ -161,47 +211,70 @@ func ToBool(v Value) (bool, error) {
 	return ret.(bool), nil
 }
 
-func Unary(op string, val Value) (Value, error) {
+func UnaryOperation(op Operator, val Value) (Value, error) {
+	if undef := IsUndefined(val); undef != nil {
+		return undef, nil
+	}
+
 	switch op {
 	case "+", "-":
-		return Binary(op, NewValue(0), val)
+		return BinaryOperation(op, NewValue(0), val)
 	case "!":
 		b, err := ToBool(val)
-		if err != nil {
-			return nil, err
-		}
-		return NewValue(!b), nil
+		return NewValue(!b), err
 	default:
 		return nil, fmt.Errorf("unsupported unary operator %s", op)
 	}
 }
 
-func Binary(op string, left, right Value) (Value, error) {
+type Operator string
+
+const (
+	AddOp = Operator("+")
+	SubOp = Operator("-")
+	MulOp = Operator("*")
+	DivOp = Operator("/")
+	AndOp = Operator("&&")
+	OrOp  = Operator("||")
+	LtOp  = Operator("<")
+	LeOp  = Operator("<=")
+	GtOp  = Operator(">")
+	GeOp  = Operator(">=")
+	EqOp  = Operator("==")
+	NeqOp = Operator("!=")
+	NotOp = Operator("!")
+)
+
+func BinaryOperation(op Operator, left, right Value) (Value, error) {
+	if undef := IsUndefined(left, right); undef != nil {
+		return undef, nil
+	}
+
 	switch op {
-	case "+":
+	case AddOp:
 		return Add(left, right)
-	case "-":
+	case SubOp:
 		return Sub(left, right)
-	case "*":
+	case MulOp:
 		return Mul(left, right)
-	case "/":
+	case DivOp:
 		return Div(left, right)
-	case "&&":
+	case AndOp:
 		return And(left, right)
-	case "||":
+	case OrOp:
 		return Or(left, right)
-	case "<":
+	case LtOp:
 		return Lt(left, right)
-	case "<=":
+	case LeOp:
 		return Le(left, right)
-	case ">":
+	case GtOp:
 		return Gt(left, right)
-	case ">=":
+	case GeOp:
 		return Ge(left, right)
-	case "==":
+	case EqOp:
 		return Eq(left, right)
-	case "!=":
-		return Ne(left, right)
+	case NeqOp:
+		return Neq(left, right)
 	default:
 		return nil, fmt.Errorf("unsupported operator %s", op)
 	}
@@ -343,7 +416,7 @@ type Neer interface {
 	Ne(right Value) (Value, error)
 }
 
-func Ne(left, right Value) (Value, error) {
+func Neq(left, right Value) (Value, error) {
 	adder, ok := left.(Neer)
 	if ok {
 		return adder.Ne(right)
@@ -355,20 +428,32 @@ type Keyser interface {
 	Keys() ([]string, error)
 }
 
-func Keys(left Value) ([]string, error) {
-	adder, ok := left.(Keyser)
+func Keys(right Value) ([]string, error) {
+	adder, ok := right.(Keyser)
 	if ok {
 		return adder.Keys()
 	}
-	return nil, fmt.Errorf("value kind %s does not support keys operation", left.Kind())
+	return nil, fmt.Errorf("value kind %s does not support keys operation", right.Kind())
 }
 
-type Closer interface {
-	Close(contract ObjectContract)
+type ToNative interface {
+	NativeValue() (any, bool, error)
 }
 
-func Close(right Value, contract ObjectContract) {
-	if c, ok := right.(Closer); ok {
-		c.Close(contract)
+func NativeValue(v Value) (any, bool, error) {
+	if nv, ok := v.(ToNative); ok {
+		return nv.NativeValue()
 	}
+	return nil, false, nil
+}
+
+type Matcher interface {
+	Match(value Value) (bool, error)
+}
+
+func Match(pattern, value Value) (bool, error) {
+	if nv, ok := pattern.(Matcher); ok {
+		return nv.Match(value)
+	}
+	return false, fmt.Errorf("value kind %s does not support matching", pattern.Kind())
 }

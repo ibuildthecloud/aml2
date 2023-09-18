@@ -1,3 +1,1 @@
-`{
-  "a": 4
-}`
+&errors.errorString{s: "can not override field number 1 with undefined circular.acorn:2:4"}

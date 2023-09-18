@@ -1,10 +1,15 @@
 &eval.Struct{Fields: []eval.Field{
 	&eval.KeyValue{
-		Key: eval.Key{
-			Value: eval.Value{Value: value.String("bin")},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("bin")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Line:     1,
+				Column:   1,
+			},
 		},
 		Value: &eval.Op{
-			Operator: "+",
+			Operator: value.Operator("+"),
 			Left:     eval.Value{Value: value.Number("1")},
 			Right:    eval.Value{Value: value.Number("1")},
 			Pos: eval.Position{
@@ -14,12 +19,25 @@
 				Column:   8,
 			},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Line:     1,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("uni")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("uni")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   11,
+				Line:     2,
+				Column:   1,
+			},
+		},
 		Value: &eval.Op{
 			Unary:    true,
-			Operator: "!",
+			Operator: value.Operator("!"),
 			Left:     eval.Value{Value: value.Number("3")},
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -28,12 +46,26 @@
 				Column:   6,
 			},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   11,
+			Line:     2,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("parens")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("parens")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   19,
+				Line:     3,
+				Column:   1,
+			},
+		},
 		Value: &eval.Parens{Expr: &eval.Op{
 			Unary:    true,
-			Operator: "!",
+			Operator: value.Operator("!"),
 			Left: eval.Value{
 				Value: value.Boolean(false),
 			},
@@ -44,9 +76,23 @@
 				Column:   10,
 			},
 		}},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   19,
+			Line:     3,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("ref")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("ref")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   36,
+				Line:     4,
+				Column:   1,
+			},
+		},
 		Value: &eval.Lookup{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -56,9 +102,23 @@
 			},
 			Key: "foo",
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   36,
+			Line:     4,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("sel")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("sel")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   45,
+				Line:     5,
+				Column:   1,
+			},
+		},
 		Value: &eval.Selector{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -77,9 +137,23 @@
 			},
 			Key: eval.Value{Value: value.String("bar")},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   45,
+			Line:     5,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("index")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("index")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   58,
+				Line:     6,
+				Column:   1,
+			},
+		},
 		Value: &eval.Index{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -90,9 +164,23 @@
 			Base:  eval.Value{Value: value.String("string")},
 			Index: eval.Value{Value: value.Number("0")},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   58,
+			Line:     6,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("slice")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("slice")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   77,
+				Line:     7,
+				Column:   1,
+			},
+		},
 		Value: &eval.Slice{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -104,9 +192,23 @@
 			Start: eval.Value{Value: value.Number("0")},
 			End:   eval.Value{Value: value.Number("1")},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   77,
+			Line:     7,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("slice")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("slice")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   95,
+				Line:     8,
+				Column:   1,
+			},
+		},
 		Value: &eval.Slice{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -117,9 +219,23 @@
 			Base: eval.Value{Value: value.String("str")},
 			End:  eval.Value{Value: value.Number("1")},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   95,
+			Line:     8,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("slice")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("slice")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   112,
+				Line:     9,
+				Column:   1,
+			},
+		},
 		Value: &eval.Slice{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -130,9 +246,23 @@
 			Base:  eval.Value{Value: value.String("str")},
 			Start: eval.Value{Value: value.Number("1")},
 		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   112,
+			Line:     9,
+			Column:   1,
+		},
 	},
 	&eval.KeyValue{
-		Key: eval.Key{Value: eval.Value{Value: value.String("slice")}},
+		Key: eval.FieldKey{
+			Key: eval.Value{Value: value.String("slice")},
+			Pos: eval.Position{
+				Filename: "expr.acorn",
+				Offset:   129,
+				Line:     10,
+				Column:   1,
+			},
+		},
 		Value: &eval.Slice{
 			Pos: eval.Position{
 				Filename: "expr.acorn",
@@ -141,6 +271,12 @@
 				Column:   13,
 			},
 			Base: eval.Value{Value: value.String("str")},
+		},
+		Pos: eval.Position{
+			Filename: "expr.acorn",
+			Offset:   129,
+			Line:     10,
+			Column:   1,
 		},
 	},
 }}

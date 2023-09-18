@@ -27,7 +27,10 @@ func TestSuccessfulBuild(t *testing.T) {
 			require.NoError(t, err)
 
 			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.ParseComments)
-			require.NoError(t, err)
+			if err != nil {
+				autogold.ExpectFile(t, err)
+				return
+			}
 
 			result, err := Build(ast)
 			if err != nil {

@@ -23,7 +23,7 @@ func TestUnary(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%s%d", t.Name(), i), func(t *testing.T) {
-			v, err := Unary(test.op, NewValue(test.val))
+			v, err := UnaryOperation(test.op, NewValue(test.val))
 			require.NoError(t, err)
 			test.expect.Equal(t, v.NativeValue())
 		})
@@ -86,7 +86,7 @@ func TestBinary(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%s%d", t.Name(), i), func(t *testing.T) {
-			v, err := Binary(test.op, NewValue(test.left), NewValue(test.right))
+			v, err := BinaryOperation(test.op, NewValue(test.left), NewValue(test.right))
 			require.NoError(t, err)
 			test.expect.Equal(t, v.NativeValue())
 		})

@@ -1,7 +1,7 @@
 a: [for x in [1, 2] {
     x
-}, 3]
-let c : 0
-b: [1, for x in a {
-    c: c + x
-}, 3]
+}] + [3]
+let c: 0
+b: [1] + [for x in a {
+    "c\(x)": c + x
+}] + [3]

@@ -11,6 +11,7 @@ import (
 
 	"github.com/acorn-io/aml/eval"
 	"github.com/acorn-io/aml/parser"
+	"github.com/acorn-io/aml/value"
 	"github.com/hexops/autogold/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,12 @@ func TestSuccessfulEval(t *testing.T) {
 			if err == nil {
 				assert.True(t, ok)
 
-				data, err = json.MarshalIndent(v.NativeValue(), "", "  ")
+				var data []byte
+				nv, ok, err := value.NativeValue(v)
+				if err == nil {
+					require.True(t, ok)
+					data, err = json.MarshalIndent(nv, "", "  ")
+				}
 				require.NoError(t, err)
 				autogold.ExpectFile(t, string(data))
 			} else {

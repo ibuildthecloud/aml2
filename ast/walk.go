@@ -125,7 +125,7 @@ func walk(v visitor, node Node) {
 
 	case *CallExpr:
 		walk(v, n.Fun)
-		walkExprList(v, n.Args)
+		walkDeclList(v, n.Args)
 
 	case *UnaryExpr:
 		walk(v, n.X)
@@ -144,11 +144,24 @@ func walk(v visitor, node Node) {
 		walk(v, n.Ident)
 		walk(v, n.Expr)
 
-	case *Comprehension:
-		for _, c := range n.Clauses {
-			walk(v, c)
+	case *For:
+		walk(v, n.Clause)
+		walk(v, n.Struct)
+
+	case *If:
+		walk(v, n.Condition)
+		walk(v, n.Struct)
+		if n.Else != nil {
+			walk(v, n.Else)
 		}
-		walk(v, n.Value)
+
+	case *Else:
+		if n.If != nil {
+			walk(v, n.If)
+		}
+		if n.Struct != nil {
+			walk(v, n.Struct)
+		}
 
 	// Files and packages
 	case *File:

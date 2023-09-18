@@ -2,13 +2,16 @@ package eval
 
 import "github.com/acorn-io/aml/value"
 
-var Builtin Data
+var Builtin ScopeData
 
 func init() {
-	Builtin = Data{}
+	Builtin = ScopeData{}
 
 	for _, kind := range value.Kinds {
-		Builtin[string(kind)] = &value.Schema{
+		if kind == value.UndefinedKind {
+			continue
+		}
+		Builtin[string(kind)] = &value.TypeSchema{
 			KindValue: kind,
 		}
 	}

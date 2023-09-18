@@ -7,26 +7,38 @@ var (
 
 type Boolean bool
 
+func (n Boolean) IsTrue() bool {
+	return bool(n)
+}
+
 func (n Boolean) Kind() Kind {
 	return BoolKind
 }
 
-func (n Boolean) NativeValue() any {
-	return (bool)(n)
+func (n Boolean) NativeValue() (any, bool, error) {
+	return (bool)(n), true, nil
 }
 
 func (n Boolean) Eq(right Value) (Value, error) {
-	if right.Kind() == BoolKind {
-		return NewValue((bool)(n) == right.NativeValue().(bool)), nil
+	if err := assertType(right, BoolKind); err != nil {
+		return nil, err
 	}
-	return False, nil
+	rightBool, err := ToBool(right)
+	if err != nil {
+		return nil, err
+	}
+	return NewValue(bool(n) == rightBool), nil
 }
 
 func (n Boolean) Ne(right Value) (Value, error) {
-	if right.Kind() == BoolKind {
-		return NewValue((bool)(n) != right.NativeValue().(bool)), nil
+	if err := assertType(right, BoolKind); err != nil {
+		return nil, err
 	}
-	return True, nil
+	rightBool, err := ToBool(right)
+	if err != nil {
+		return nil, err
+	}
+	return NewValue(bool(n) != rightBool), nil
 }
 
 func (n Boolean) And(right Value) (Value, error) {
@@ -43,8 +55,4 @@ func (n Boolean) Or(right Value) (Value, error) {
 		return nil, err
 	}
 	return NewValue((bool)(n) || b), nil
-}
-
-func (n Boolean) Merge(val Value) (Value, error) {
-	return mergeNative(n, val)
 }

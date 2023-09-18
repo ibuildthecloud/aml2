@@ -1,11 +1,19 @@
 &eval.Struct{Fields: []eval.Field{
 	&eval.Embedded{Expression: &eval.Struct{
 		Fields: []eval.Field{&eval.KeyValue{
-			Local: true,
-			Key: eval.Key{Value: eval.Value{
-				Value: value.String("a"),
-			}},
+			Key: eval.FieldKey{
+				Key: eval.Value{
+					Value: value.String("a"),
+				},
+				Pos: eval.Position{
+					Filename: "let.acorn",
+					Offset:   7,
+					Line:     2,
+					Column:   6,
+				},
+			},
 			Value: eval.Value{Value: value.Number("1")},
+			Local: true,
 		}},
 	}},
 }}

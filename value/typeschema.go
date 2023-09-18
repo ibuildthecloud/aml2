@@ -5,32 +5,39 @@ import (
 	"fmt"
 )
 
-type Schema struct {
+type TypeSchema struct {
 	KindValue    Kind
 	Constraints  []Checker
-	UnionTypes   []Schema
+	UnionTypes   []TypeSchema
 	DefaultValue Value
+}
+
+func NewDefault(v Value) Value {
+	return &TypeSchema{
+		KindValue:    targetKind(v),
+		DefaultValue: v,
+	}
 }
 
 type Condition func(val Value) (Value, error)
 
-func (n *Schema) Kind() Kind {
+func (n *TypeSchema) Kind() Kind {
 	return SchemaKind
 }
 
-func (n *Schema) TargetKind() Kind {
+func (n *TypeSchema) TargetKind() Kind {
 	return n.KindValue
 }
 
-func (n *Schema) GetConditions() []Condition {
+func (n *TypeSchema) GetConditions() []Condition {
 	return n.GetConditions()
 }
 
-func (n *Schema) NativeValue() any {
+func (n *TypeSchema) NativeValue() any {
 	return n.KindValue
 }
 
-func (n *Schema) Gt(right Value) (Value, error) {
+func (n *TypeSchema) Gt(right Value) (Value, error) {
 	result := *n
 	result.Constraints = append(result.Constraints, &Constraint{
 		Op:    ">",
@@ -39,7 +46,7 @@ func (n *Schema) Gt(right Value) (Value, error) {
 	return &result, nil
 }
 
-func (n *Schema) Ge(right Value) (Value, error) {
+func (n *TypeSchema) Ge(right Value) (Value, error) {
 	result := *n
 	result.Constraints = append(result.Constraints, &Constraint{
 		Op:    ">=",
@@ -48,7 +55,7 @@ func (n *Schema) Ge(right Value) (Value, error) {
 	return &result, nil
 }
 
-func (n *Schema) Le(right Value) (Value, error) {
+func (n *TypeSchema) Le(right Value) (Value, error) {
 	result := *n
 	result.Constraints = append(result.Constraints, &Constraint{
 		Op:    "<=",
@@ -57,7 +64,7 @@ func (n *Schema) Le(right Value) (Value, error) {
 	return &result, nil
 }
 
-func (n *Schema) Lt(right Value) (Value, error) {
+func (n *TypeSchema) Lt(right Value) (Value, error) {
 	result := *n
 	result.Constraints = append(result.Constraints, &Constraint{
 		Op:    "<",
@@ -75,11 +82,42 @@ func targetKind(v Value) Kind {
 	return v.Kind()
 }
 
-func (n *Schema) Or(right Value) (Value, error) {
-	result := *n
-	schema, ok := right.(*Schema)
+func (n *TypeSchema) And(right Value) (Value, error) {
+	rightSchema, ok := right.(*TypeSchema)
 	if !ok {
-		result.UnionTypes = append(result.UnionTypes, Schema{
+		return nil, fmt.Errorf("expected kind %s, got %s", n.Kind(), right.Kind())
+	}
+	if n.TargetKind() != rightSchema.TargetKind() {
+		return nil, fmt.Errorf("invalid schema condition %s && %s incompatible", n.TargetKind(), rightSchema.TargetKind())
+	}
+
+	cp := *n
+	cp.UnionTypes = append(cp.UnionTypes, rightSchema.UnionTypes...)
+	cp.Constraints = append(cp.Constraints, rightSchema.Constraints...)
+	if cp.DefaultValue == nil {
+		cp.DefaultValue = rightSchema.DefaultValue
+	} else if rightSchema.DefaultValue != nil {
+		eq, err := Eq(cp.DefaultValue, rightSchema.DefaultValue)
+		if err != nil {
+			return nil, err
+		}
+		b, err := ToBool(eq)
+		if err != nil {
+			return nil, err
+		}
+		if !b {
+			return nil, fmt.Errorf("can not have two default values for schema kind %s, %s and %s", cp.TargetKind(), cp.DefaultValue, rightSchema.DefaultValue)
+		}
+	}
+
+	return &cp, nil
+}
+
+func (n *TypeSchema) Or(right Value) (Value, error) {
+	result := *n
+	schema, ok := right.(*TypeSchema)
+	if !ok {
+		result.UnionTypes = append(result.UnionTypes, TypeSchema{
 			KindValue:    targetKind(right),
 			DefaultValue: right,
 		})
@@ -105,11 +143,11 @@ func (n *Schema) Or(right Value) (Value, error) {
 	return &result, nil
 }
 
-func (n *Schema) Default() (Value, bool) {
+func (n *TypeSchema) Default() (Value, bool) {
 	return n.DefaultValue, n.DefaultValue != nil
 }
 
-func checkTypes(schemas []Schema, right Value) (Value, error) {
+func checkTypes(schemas []TypeSchema, right Value) (Value, error) {
 	var errs []error
 	for _, schema := range schemas {
 		if schema.TargetKind() != right.Kind() {
@@ -120,8 +158,8 @@ func checkTypes(schemas []Schema, right Value) (Value, error) {
 			errs = append(errs, err)
 			continue
 		}
-		if schema.DefaultValue != nil {
-			v, err := schema.DefaultValue.Merge(right)
+		if schema.DefaultValue != nil && !IsSimpleKind(right.Kind()) {
+			v, err := Merge(schema.DefaultValue, right)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -133,8 +171,11 @@ func checkTypes(schemas []Schema, right Value) (Value, error) {
 	return right, errors.Join(errs...)
 }
 
-func (n *Schema) Merge(right Value) (Value, error) {
-	schemas := []Schema{*n}
+func (n *TypeSchema) Merge(right Value) (Value, error) {
+	if right.Kind() == SchemaKind {
+		return And(n, right)
+	}
+	schemas := []TypeSchema{*n}
 	schemas = append(schemas, n.UnionTypes...)
 	return checkTypes(schemas, right)
 }

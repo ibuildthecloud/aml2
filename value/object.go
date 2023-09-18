@@ -1,18 +1,13 @@
 package value
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 )
 
 type Object struct {
-	Entries  []Entry
-	Contract ObjectContract
-}
-
-type ObjectContract interface {
-	RequiredKeys() ([]string, error)
-	LookupValue(key string) (Value, bool, error)
+	Entries []Entry
 }
 
 func NewObject(data map[string]any) *Object {
@@ -34,45 +29,105 @@ func NewObject(data map[string]any) *Object {
 	return o
 }
 
-func (n *Object) LookupValue(key string) (Value, bool, error) {
-	var (
-		entry Entry
-		found bool
-	)
+func (n *Object) LookupValue(key Value) (Value, bool, error) {
 	for _, e := range n.Entries {
-		if e.Key == key {
-			entry = e
-			found = true
+		b, err := Eq(key, NewValue(e.Key))
+		if err != nil {
+			return nil, false, err
+		}
+
+		if b, err := ToBool(b); err != nil || b {
+			return e.Value, b, err
 		}
 	}
 
-	return entry.Value, found, nil
+	return nil, false, nil
 }
 
-func (n *Object) Close(contract ObjectContract) {
-	n.Contract = contract
-}
+func (n *Object) Eq(right Value) (Value, error) {
+	if right.Kind() != ObjectKind {
+		return nil, fmt.Errorf("can not compare object with kind %s", right.Kind())
+	}
 
-func (n *Object) TargetKind() Kind {
-	return ObjectKind
+	rightKeys, err := Keys(right)
+	if err != nil {
+		return nil, err
+	}
+
+	leftKeys, err := n.Keys()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rightKeys) != len(leftKeys) {
+		return False, nil
+	}
+
+	sort.Strings(rightKeys)
+	sort.Strings(leftKeys)
+
+	for i, key := range rightKeys {
+		if leftKeys[i] != key {
+			return False, nil
+		}
+
+		leftValue, ok, err := n.LookupValue(NewValue(key))
+		if err != nil || !ok {
+			return False, err
+		}
+
+		rightValue, ok, err := Lookup(right, NewValue(key))
+		if err != nil || !ok {
+			return False, err
+		}
+
+		bValue, err := Eq(leftValue, rightValue)
+		if err != nil {
+			return nil, err
+		}
+
+		b, err := ToBool(bValue)
+		if err != nil {
+			return nil, err
+		}
+		if !b {
+			return False, nil
+		}
+	}
+
+	return True, nil
 }
 
 func (n *Object) Kind() Kind {
-	if n.Contract != nil {
-		return SchemaKind
-	}
 	return ObjectKind
 }
 
-func (n *Object) NativeValue() any {
+func (n *Object) MarshalJSON() ([]byte, error) {
 	result := map[string]any{}
 	for _, entry := range n.Entries {
-		if entry.Value.Kind() == FuncKind || entry.Value.Kind() == SchemaKind {
+		result[entry.Key] = entry.Value
+	}
+	return json.Marshal(result)
+}
+
+func (n *Object) String() string {
+	data, _ := n.MarshalJSON()
+	return string(data)
+}
+
+func (n *Object) NativeValue() (any, bool, error) {
+	result := map[string]any{}
+	for _, entry := range n.Entries {
+		nv, ok, err := NativeValue(entry.Value)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
 			continue
 		}
-		result[entry.Key] = entry.Value.NativeValue()
+		result[entry.Key] = nv
 	}
-	return result
+	return result, true, nil
 }
 
 func (n *Object) Keys() ([]string, error) {
@@ -83,37 +138,19 @@ func (n *Object) Keys() ([]string, error) {
 	return result, nil
 }
 
-func (n *Object) lookup(key string) (Value, bool, error) {
-	if n.Contract != nil {
-		return n.Contract.LookupValue(key)
-	}
-	return n.LookupValue(key)
-}
-
-func (n *Object) requiredKeys() (result []string, _ error) {
-	if n.Contract == nil {
-		for _, entry := range n.Entries {
-			result = append(result, entry.Key)
-		}
-		return result, nil
-	}
-
-	return n.Contract.RequiredKeys()
-}
-
 func (n *Object) Merge(right Value) (Value, error) {
-	if merged, err := mergeNull(n, right); merged != nil || err != nil {
-		return merged, err
+	if err := checkType(n, right); err != nil {
+		return nil, err
 	}
 
 	var (
-		head []Entry
-		tail []Entry
+		result   []Entry
+		keysSeen = map[string]int{}
 	)
 
-	requiredKeys, err := n.requiredKeys()
-	if err != nil {
-		return nil, err
+	for _, entry := range n.Entries {
+		keysSeen[entry.Key] = len(result)
+		result = append(result, entry)
 	}
 
 	keys, err := Keys(right)
@@ -121,93 +158,36 @@ func (n *Object) Merge(right Value) (Value, error) {
 		return nil, err
 	}
 
-	keysSeen := map[string]struct{}{}
-
 	for _, key := range keys {
-		rightValue, ok, err := Lookup(right, key)
+		rightValue, ok, err := Lookup(right, NewValue(key))
 		if err != nil {
 			return nil, err
 		}
 		if !ok {
 			continue
 		}
-		keysSeen[key] = struct{}{}
 
-		schemaValue, ok, err := n.lookup(key)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			rightValue, err = schemaValue.Merge(rightValue)
+		if i, ok := keysSeen[key]; ok {
+			rightValue, err = Merge(result[i].Value, rightValue)
 			if err != nil {
 				return nil, err
 			}
-		} else if n.Kind() == SchemaKind {
-			return nil, &ErrUnknownField{
-				Key: key,
-			}
-		}
-
-		tail = append(tail, Entry{
-			Key:   key,
-			Value: rightValue,
-		})
-	}
-
-	var missingKeys []string
-	for _, k := range requiredKeys {
-		if _, seen := keysSeen[k]; seen {
-			continue
-		}
-		def, ok, err := n.lookup(k)
-		if err != nil {
-			return nil, err
-		}
-		if n.Kind() != SchemaKind {
-			if ok {
-				head = append(head, Entry{
-					Key:   k,
-					Value: def,
-				})
-			}
-		} else if def, hasDefault := DefaultValue(def); ok && hasDefault {
-			head = append(head, Entry{
-				Key:   k,
-				Value: def,
-			})
+			result[i].Value = rightValue
 		} else {
-			missingKeys = append(missingKeys, k)
+			result = append(result, Entry{
+				Key:   key,
+				Value: rightValue,
+			})
 		}
-	}
 
-	if len(missingKeys) > 0 {
-		return nil, &ErrMissingRequiredKeys{
-			Keys: missingKeys,
-		}
 	}
 
 	return &Object{
-		Entries: append(head, tail...),
+		Entries: result,
 	}, nil
 }
 
 type Entry struct {
 	Key   string
 	Value Value
-}
-
-type ErrUnknownField struct {
-	Key string
-}
-
-func (e *ErrUnknownField) Error() string {
-	return fmt.Sprintf("unknown field: %s", e.Key)
-}
-
-type ErrMissingRequiredKeys struct {
-	Keys []string
-}
-
-func (e *ErrMissingRequiredKeys) Error() string {
-	return fmt.Sprintf("missing required keys: %v", e.Keys)
 }

@@ -12,8 +12,8 @@ func (n Number) Kind() Kind {
 	return NumberKind
 }
 
-func (n Number) NativeValue() any {
-	return n
+func (n Number) NativeValue() (any, bool, error) {
+	return n, true, nil
 }
 
 func toNum(n Value) (reti *int64, retf *float64, err error) {
@@ -54,7 +54,7 @@ func (n Number) binCompare(right Value, opName string, intFunc func(int64, int64
 	} else if lf != nil && rf != nil {
 		return NewValue(floatFunc(*lf, *rf)), nil
 	} else {
-		return nil, fmt.Errorf("can not compare (%s) incompatible numbers %s and %s", opName, n, right.NativeValue())
+		return nil, fmt.Errorf("can not compare (%s) incompatible numbers %s and %s", opName, n, right)
 	}
 }
 
@@ -78,7 +78,7 @@ func (n Number) binOp(right Value, opName string, intFunc func(int64, int64) int
 	} else if lf != nil && rf != nil {
 		return NewValue(floatFunc(*lf, *rf)), nil
 	} else {
-		return nil, fmt.Errorf("can not %s incompatible numbers %s and %s", opName, n, right.NativeValue())
+		return nil, fmt.Errorf("can not %s incompatible numbers %s and %s", opName, n, right)
 	}
 }
 
@@ -174,10 +174,6 @@ func (n Number) ToInt() (int64, error) {
 
 func (n Number) ToFloat() (float64, error) {
 	return strconv.ParseFloat(string(n), 64)
-}
-
-func (n Number) Merge(val Value) (Value, error) {
-	return mergeNative(n, val)
 }
 
 func (n Number) MarshalJSON() ([]byte, error) {

@@ -1,29 +1,55 @@
 package value
 
+import "regexp"
+
 type String string
 
 func (s String) Kind() Kind {
 	return StringKind
 }
 
-func (s String) NativeValue() any {
-	return (string)(s)
+func (s String) NativeValue() (any, bool, error) {
+	return (string)(s), true, nil
 }
 
 func (s String) Eq(right Value) (Value, error) {
-	if right.Kind() == StringKind {
-		return NewValue((string)(s) == s.NativeValue().(string)), nil
+	if err := assertType(right, StringKind); err != nil {
+		return nil, err
 	}
-	return False, nil
+	rightString, err := ToString(right)
+	if err != nil {
+		return nil, err
+	}
+	return NewValue(string(s) == rightString), nil
 }
 
 func (s String) Ne(right Value) (Value, error) {
-	if right.Kind() == StringKind {
-		return NewValue((string)(s) != s.NativeValue().(string)), nil
+	if err := assertType(right, StringKind); err != nil {
+		return nil, err
 	}
-	return True, nil
+	rightString, err := ToString(right)
+	if err != nil {
+		return nil, err
+	}
+	return NewValue(string(s) == rightString), nil
 }
 
-func (s String) Merge(val Value) (Value, error) {
-	return mergeNative(s, val)
+func (s String) Match(right Value) (bool, error) {
+	if err := assertType(right, StringKind); err != nil {
+		return false, err
+	}
+
+	rightString, err := ToString(right)
+	if err != nil {
+		return false, err
+	}
+
+	re, err := regexp.Compile(string(s))
+	if err != nil {
+		return false, err
+	}
+
+	m := re.FindStringIndex(rightString)
+	// regexp must fully match string, not a subset of it
+	return m != nil && m[0] == 0 && m[1] == len(rightString), nil
 }

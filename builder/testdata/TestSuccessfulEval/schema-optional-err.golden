@@ -1,1 +1,3 @@
-&errors.errorString{s: "can not override field kind number with kind string"}
+&errors.joinError{errs: []error{
+	&errors.errorString{s: "expected kind number but got string"},
+}}

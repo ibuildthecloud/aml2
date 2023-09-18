@@ -23,14 +23,7 @@ func (a *Array) ToValue(scope Scope) (value.Value, bool, error) {
 		if !ok {
 			continue
 		}
-		_, isFor := item.(*For)
-		if isFor && v.Kind() == value.ArrayKind {
-			for _, item := range v.NativeValue().([]any) {
-				objs = append(objs, value.NewValue(item))
-			}
-		} else {
-			objs = append(objs, v)
-		}
+		objs = append(objs, v)
 	}
 	return value.NewArray(objs), true, nil
 }
@@ -40,15 +33,28 @@ type Parens struct {
 	Expr     Expression
 }
 
+type Default struct {
+	Comments Comments
+	Expr     Expression
+	Pos      Position
+}
+
+func (d *Default) ToValue(scope Scope) (value.Value, bool, error) {
+	v, ok, err := d.Expr.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return value.NewDefault(v), true, nil
+}
+
 func (p *Parens) ToValue(scope Scope) (value.Value, bool, error) {
 	return p.Expr.ToValue(scope)
 }
 
 type Op struct {
-	Schema   bool
 	Unary    bool
 	Comments Comments
-	Operator string
+	Operator value.Operator
 	Left     Expression
 	Right    Expression
 	Pos      Position
@@ -61,7 +67,7 @@ func (o *Op) ToValue(scope Scope) (value.Value, bool, error) {
 	}
 
 	if o.Unary {
-		newValue, err := value.Unary(o.Operator, left)
+		newValue, err := value.UnaryOperation(o.Operator, left)
 		return newValue, true, err
 	}
 
@@ -70,7 +76,7 @@ func (o *Op) ToValue(scope Scope) (value.Value, bool, error) {
 		return nil, ok, err
 	}
 
-	newValue, err := value.Binary(o.Operator, left, right)
+	newValue, err := value.BinaryOperation(o.Operator, left, right)
 	return newValue, true, err
 }
 
@@ -78,16 +84,24 @@ type Lookup struct {
 	Comments Comments
 	Pos      Position
 	Key      string
+
+	evaluating bool
 }
 
 func (l *Lookup) ToValue(scope Scope) (value.Value, bool, error) {
+	if l.evaluating {
+		return value.Undefined{Pos: value.Position(l.Pos)}, true, nil
+	}
+	l.evaluating = true
+	defer func() { l.evaluating = false }()
+
 	v, ok, err := scope.Get(l.Key)
 	if err != nil {
 		return nil, false, err
 	}
 	if !ok {
 		return nil, false, &ErrPathNotFound{
-			Key: l.Key,
+			Key: value.NewValue(l.Key),
 			Pos: l.Pos,
 		}
 	}
@@ -95,21 +109,12 @@ func (l *Lookup) ToValue(scope Scope) (value.Value, bool, error) {
 }
 
 type ErrPathNotFound struct {
-	Key string
+	Key value.Value
 	Pos Position
 }
 
 func (c *ErrPathNotFound) Error() string {
 	return fmt.Sprintf("path not found: %s %s", c.Key, c.Pos)
-}
-
-type ErrIndexNotFound struct {
-	Index int64
-	Pos   Position
-}
-
-func (c *ErrIndexNotFound) Error() string {
-	return fmt.Sprintf("index not found: %d %s", c.Index, c.Pos)
 }
 
 type Selector struct {
@@ -120,9 +125,9 @@ type Selector struct {
 }
 
 func (s *Selector) ToValue(scope Scope) (value.Value, bool, error) {
-	key, err := exprToString(s.Key, scope)
-	if err != nil {
-		return nil, false, err
+	key, ok, err := s.Key.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
 	}
 
 	v, ok, err := s.Base.ToValue(scope)
@@ -130,10 +135,7 @@ func (s *Selector) ToValue(scope Scope) (value.Value, bool, error) {
 		return nil, false, err
 	}
 	if !ok {
-		return nil, false, &ErrPathNotFound{
-			Key: key,
-			Pos: s.Pos,
-		}
+		return nil, false, nil
 	}
 
 	newValue, ok, err := value.Lookup(v, key)
@@ -158,34 +160,21 @@ type Index struct {
 }
 
 func (i *Index) ToValue(scope Scope) (value.Value, bool, error) {
-	key, err := exprToInt(i.Index, scope)
-	if err != nil {
-		return nil, false, err
+	base, ok, err := i.Base.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
 	}
 
-	v, ok, err := i.Base.ToValue(scope)
-	if err != nil {
-		return nil, false, err
-	}
-	if !ok {
-		return nil, false, &ErrIndexNotFound{
-			Index: key,
-			Pos:   i.Pos,
-		}
+	indexValue, ok, err := i.Index.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
 	}
 
-	newValue, ok, err := value.Index(v, key)
-	if err != nil {
-		return nil, false, err
-	}
-	if !ok {
-		return nil, false, &ErrIndexNotFound{
-			Index: key,
-			Pos:   i.Pos,
-		}
+	if indexValue.Kind() == value.StringKind {
+		return value.Lookup(base, indexValue)
 	}
 
-	return newValue, true, nil
+	return value.Index(base, indexValue)
 }
 
 type Slice struct {
@@ -198,43 +187,30 @@ type Slice struct {
 
 func (s *Slice) ToValue(scope Scope) (value.Value, bool, error) {
 	var (
-		err   error
-		end   = int64(0)
-		start = int64(0)
+		start, end value.Value
 	)
 
 	v, ok, err := s.Base.ToValue(scope)
-	if err != nil {
-		return nil, false, err
-	}
-	if !ok {
-		return nil, false, &ErrPathNotFound{
-			Key: fmt.Sprint(start),
-			Pos: s.Pos,
-		}
+	if err != nil || !ok {
+		return nil, ok, err
 	}
 
 	if s.Start != nil {
-		start, err = exprToInt(s.Start, scope)
-		if err != nil {
-			return nil, false, err
+		start, ok, err = s.Start.ToValue(scope)
+		if err != nil || !ok {
+			return nil, ok, err
 		}
 	}
 
-	if s.End == nil {
-		end, err = value.Len(v)
-		if err != nil {
-			return nil, false, err
-		}
-	} else {
-		end, err = exprToInt(s.End, scope)
-		if err != nil {
-			return nil, false, err
+	if s.End != nil {
+		end, ok, err = s.End.ToValue(scope)
+		if err != nil || !ok {
+			return nil, ok, err
 		}
 	}
 
 	newValue, ok, err := value.Slice(v, start, end)
-	if !ok || err != nil {
+	if err != nil || !ok {
 		return nil, ok, err
 	}
 
@@ -245,37 +221,59 @@ type Call struct {
 	Comments Comments
 	Pos      Position
 	Func     Expression
-	Args     []Expression
+	Args     []Field
 }
 
 func (c *Call) ToValue(scope Scope) (value.Value, bool, error) {
-	panic("unsupported")
+	v, ok, err := c.Func.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+
+	var args []value.CallArgument
+	for _, field := range c.Args {
+		var arg value.CallArgument
+		if posArg, ok := field.(IsPositionalArgument); ok {
+			arg.Positional = posArg.IsPositionalArgument()
+		}
+		v, ok, err := field.ToValue(scope)
+		if err != nil {
+			return nil, false, err
+		} else if !ok {
+			continue
+		}
+		arg.Value = v
+		args = append(args, arg)
+	}
+
+	return value.Call(v, args...)
 }
 
 type If struct {
-	Comments   Comments
-	Condition  Expression
-	Value      Expression
-	evaluating bool
+	Comments  Comments
+	Condition Expression
+	Value     Expression
+	Else      Expression
 }
 
 func (i *If) ToValue(scope Scope) (value.Value, bool, error) {
-	if i.evaluating {
-		return nil, false, nil
-	}
-	i.evaluating = true
 	v, ok, err := i.Condition.ToValue(scope)
-	i.evaluating = false
 	if err != nil || !ok {
 		return nil, ok, err
+	}
+
+	if v.Kind() == value.UndefinedKind {
+		return v, false, err
 	}
 
 	b, err := value.ToBool(v)
 	if err != nil {
 		return nil, false, err
 	}
-
 	if !b {
+		if i.Else != nil {
+			return i.Else.ToValue(scope)
+		}
 		return nil, false, nil
 	}
 
@@ -300,8 +298,17 @@ func (i *Interpolation) ToValue(scope Scope) (value.Value, bool, error) {
 			if !ok {
 				continue
 			}
-			s := value.Escape(fmt.Sprint(val.NativeValue()))
-			result = append(result, s)
+			if val.Kind() == value.UndefinedKind {
+				return val, true, nil
+			}
+			nv, ok, err := value.NativeValue(val)
+			if err != nil {
+				return nil, false, err
+			}
+			if !ok {
+				continue
+			}
+			result = append(result, value.Escape(fmt.Sprint(nv)))
 		}
 	}
 	s, err := value.Unquote(strings.Join(result, ""))
@@ -309,55 +316,83 @@ func (i *Interpolation) ToValue(scope Scope) (value.Value, bool, error) {
 }
 
 type For struct {
-	Comments Comments
-	Key      Expression
-	Value    Expression
-	List     Expression
-	Body     Expression
+	Comments   Comments
+	Key        string
+	Value      string
+	Collection Expression
+	Body       Expression
+	Merge      bool
+}
+
+type entry struct {
+	Key   value.Value
+	Value value.Value
+}
+
+func toList(v value.Value) (result []entry, _ error) {
+	if v.Kind() == value.ArrayKind {
+		list, err := value.ToValueArray(v)
+		if err != nil {
+			return nil, err
+		}
+		for i, item := range list {
+			result = append(result, entry{
+				Key:   value.NewValue(i),
+				Value: item,
+			})
+		}
+		return
+	} else if v.Kind() == value.ObjectKind {
+		keys, err := value.Keys(v)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range keys {
+			v, ok, err := value.Lookup(v, value.NewValue(key))
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				continue
+			}
+			result = append(result, entry{
+				Key:   value.NewValue(key),
+				Value: v,
+			})
+		}
+	} else {
+		result = append(result, entry{
+			Key:   value.NewValue(0),
+			Value: v,
+		})
+	}
+
+	return
 }
 
 func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
-	var (
-		indexKey    string
-		hasIndexKey bool
-		valueKey    string
-		err         error
-	)
-
-	if f.Key != nil {
-		hasIndexKey = true
-		indexKey, err = exprToString(f.Key, scope)
-		if err != nil {
-			return nil, false, err
-		}
-	}
-
-	valueKey, err = exprToString(f.Value, scope)
-	if err != nil {
-		return nil, false, err
-	}
-
-	listValue, ok, err := f.List.ToValue(scope)
+	collection, ok, err := f.Collection.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
 
-	list, err := value.ToValueArray(listValue)
+	list, err := toList(collection)
 	if err != nil {
 		return nil, false, err
 	}
 
 	array := value.Array{}
 
-	for i, item := range list {
-		data := map[string]value.Value{
-			valueKey: item,
+	for _, item := range list {
+		data := map[string]any{}
+		if f.Key != "" {
+			data[f.Key] = item.Key
 		}
-		if hasIndexKey {
-			data[indexKey] = value.NewValue(i)
+		if f.Value != "" {
+			data[f.Value] = item.Value
 		}
 
-		newValue, ok, err := f.Body.ToValue(scope.Push(MapLookup(data)))
+		newValue, ok, err := f.Body.ToValue(scope.Push(ScopeData(data)))
 		if err != nil {
 			return nil, false, err
 		}
@@ -368,65 +403,30 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 		array = append(array, newValue)
 
 		if newValue.Kind() == value.ObjectKind {
-			scope = scope.Push(NativeMapLookup(newValue.NativeValue().(map[string]any)))
+			scope = scope.Push(ValueScopeLookup{
+				Value: newValue,
+			})
 		}
+	}
+
+	if f.Merge {
+		vals := array.ToValues()
+		if len(vals) == 0 {
+			return value.NewObject(nil), true, nil
+		}
+		v, err := value.Merge(vals...)
+		return v, true, err
 	}
 
 	return array, true, nil
-}
-
-type SchemaAllowed interface {
-	SchemaAllowed() bool
-}
-
-type MergeObjectArray struct {
-	Array Expression
-}
-
-func (m *MergeObjectArray) ToValue(scope Scope) (value.Value, bool, error) {
-	v, ok, err := m.Array.ToValue(scope)
-	if err != nil || !ok {
-		return nil, ok, err
-	}
-
-	valueArray, err := value.ToValueArray(v)
-	if err != nil {
-		return nil, false, err
-	}
-
-	var result value.Value
-	for _, item := range valueArray {
-		if result == nil {
-			result = item
-		} else {
-			result, err = result.Merge(item)
-			if err != nil {
-				return nil, false, err
-			}
-		}
-	}
-
-	return result, true, nil
 }
 
 type Expression interface {
 	ToValue(scope Scope) (value.Value, bool, error)
 }
 
-func exprToString(expr Expression, scope Scope) (string, error) {
-	v, _, err := expr.ToValue(scope)
-	if err != nil {
-		return "", err
-	}
-	return value.ToString(v)
-}
-
-func exprToInt(expr Expression, scope Scope) (int64, error) {
-	v, _, err := expr.ToValue(scope)
-	if err != nil {
-		return 0, err
-	}
-	return value.ToInt(v)
+type IsPositionalArgument interface {
+	IsPositionalArgument() bool
 }
 
 type Value struct {

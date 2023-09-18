@@ -79,10 +79,13 @@ const (
 	keywordBeg
 
 	IF
+	ELSE
 	FOR
 	IN
 	LET
-	FUNCTION // experimental
+	FUNCTION
+	SCHEMA
+	DEFAULT
 
 	TRUE
 	FALSE
@@ -141,9 +144,12 @@ var tokens = [...]string{
 
 	FOR:      "for",
 	IF:       "if",
+	ELSE:     "else",
 	IN:       "in",
 	LET:      "let",
 	FUNCTION: "function",
+	SCHEMA:   "schema",
+	DEFAULT:  "default",
 }
 
 // String returns the string corresponding to the token tok.
@@ -224,15 +230,6 @@ func (tok Token) IsLiteral() bool { return literalBeg < tok && tok < literalEnd 
 // IsOperator returns true for tokens corresponding to operators and
 // delimiters; it returns false otherwise.
 func (tok Token) IsOperator() bool { return operatorBeg < tok && tok < operatorEnd }
-
-func (tok Token) IsIdentTerminator() bool {
-	switch tok {
-	case COLON, OPTION, COMMA, EOF:
-		return true
-	default:
-		return false
-	}
-}
 
 // IsKeyword returns true for tokens corresponding to keywords;
 // it returns false otherwise.

@@ -222,13 +222,7 @@ func isDigit(ch rune) bool {
 
 func (s *Scanner) scanFieldIdentifier() string {
 	offs := s.offset
-	if s.ch == '_' {
-		s.next()
-	}
-	if s.ch == '#' {
-		s.next()
-	}
-	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '_' {
+	for isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
 	return string(s.src[offs:s.offset])
@@ -236,7 +230,7 @@ func (s *Scanner) scanFieldIdentifier() string {
 
 func (s *Scanner) scanIdentifier() string {
 	offs := s.offset
-	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '_' || s.ch == '$' {
+	for isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
 	return string(s.src[offs:s.offset])
@@ -428,16 +422,6 @@ func (s *Scanner) consumeRepeating(quote rune, max int) (n int) {
 	return n
 }
 
-func (s *Scanner) scanHashes(maxHash int) int {
-	for i := 0; i < maxHash; i++ {
-		if s.ch != '#' {
-			return i
-		}
-		s.next()
-	}
-	return maxHash
-}
-
 func stripCR(b []byte) []byte {
 	c := make([]byte, len(b))
 	i := 0
@@ -574,7 +558,7 @@ scanAgain:
 	case '0' <= ch && ch <= '9':
 		insertEOL = true
 		tok, lit = s.scanNumber(false)
-	case isLetter(ch), ch == '#':
+	case isLetter(ch):
 		lit = s.scanFieldIdentifier()
 		tok = token.Lookup(lit)
 		insertEOL = true
@@ -588,10 +572,6 @@ scanAgain:
 				return s.file.Pos(offset, token.Elided), token.COMMA, "\n"
 			}
 			tok = token.EOF
-		case '_':
-			tok = token.IDENT
-			lit = "_" + s.scanFieldIdentifier()
-			insertEOL = true
 
 		case '\n':
 			// we only reach here if s.insertComma was

@@ -25,10 +25,10 @@ func (n *Null) Kind() Kind {
 	return NullKind
 }
 
-func (n *Null) NativeValue() any {
-	return nil
+func (n *Null) String() string {
+	return "null"
 }
 
-func (n *Null) Merge(val Value) (Value, error) {
-	return mergeNative(n, val)
+func (n *Null) NativeValue() (any, bool, error) {
+	return nil, true, nil
 }
