@@ -37,6 +37,24 @@ func (n *TypeSchema) NativeValue() any {
 	return n.KindValue
 }
 
+func (n *TypeSchema) Eq(right Value) (Value, error) {
+	result := *n
+	result.Constraints = append(result.Constraints, &Constraint{
+		Op:    "==",
+		Right: right,
+	})
+	return &result, nil
+}
+
+func (n *TypeSchema) Neq(right Value) (Value, error) {
+	result := *n
+	result.Constraints = append(result.Constraints, &Constraint{
+		Op:    "!=",
+		Right: right,
+	})
+	return &result, nil
+}
+
 func (n *TypeSchema) Gt(right Value) (Value, error) {
 	result := *n
 	result.Constraints = append(result.Constraints, &Constraint{

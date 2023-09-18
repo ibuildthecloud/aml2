@@ -217,9 +217,9 @@ func UnaryOperation(op Operator, val Value) (Value, error) {
 	}
 
 	switch op {
-	case "+", "-":
+	case AddOp, SubOp:
 		return BinaryOperation(op, NewValue(0), val)
-	case "!":
+	case NotOp:
 		b, err := ToBool(val)
 		return NewValue(!b), err
 	default:

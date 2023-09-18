@@ -25,8 +25,8 @@ type Constraint struct {
 	Right Value
 }
 
-func (c *Constraint) check(f func(left, right Value) (Value, error), left, right Value) error {
-	v, err := f(left, right)
+func (c *Constraint) check(op Operator, left, right Value) error {
+	v, err := BinaryOperation(op, left, right)
 	if err != nil {
 		return err
 	}
@@ -41,15 +41,9 @@ func (c *Constraint) check(f func(left, right Value) (Value, error), left, right
 }
 
 func (c *Constraint) Check(left Value) error {
-	switch c.Op {
-	case ">":
-		return c.check(Gt, left, c.Right)
-	case ">=":
-		return c.check(Ge, left, c.Right)
-	case "<":
-		return c.check(Lt, left, c.Right)
-	case "<=":
-		return c.check(Le, left, c.Right)
+	switch Operator(c.Op) {
+	case GtOp, GeOp, LtOp, LeOp, EqOp, NeqOp:
+		return c.check(Operator(c.Op), left, c.Right)
 	default:
 		return fmt.Errorf("unknown operator for constraint: %s", c.Op)
 	}
