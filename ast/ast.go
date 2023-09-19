@@ -316,7 +316,7 @@ func (x *Interpolation) End() token.Pos  { return x.Elts[len(x.Elts)-1].Pos() }
 
 // A Func node represents a function expression.
 type Func struct {
-	Func token.Pos // position of "func"
+	Func token.Pos // position of "function"
 	Body *StructLit
 
 	comments
@@ -673,7 +673,6 @@ func (d *EmbedDecl) End() token.Pos  { return d.Expr.End() }
 // via Doc and Comment fields.
 type File struct {
 	Filename string
-	Schema   bool
 	Decls    []Decl // top-level declarations; or nil
 	comments
 }

@@ -1,19 +1,16 @@
 module github.com/acorn-io/aml
 
-go 1.20
+go 1.21
 
 require (
-	cuelang.org/go v0.6.0
-	github.com/cockroachdb/apd/v3 v3.2.0
-	github.com/google/go-cmp v0.5.9
 	github.com/hexops/autogold/v2 v2.2.1
-	github.com/mpvl/unique v0.0.0-20150818121801-cbe035fff7de
 	github.com/stretchr/testify v1.8.4
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/hexops/valast v1.4.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

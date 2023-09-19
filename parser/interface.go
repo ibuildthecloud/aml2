@@ -28,12 +28,6 @@ import (
 type Option func(p *parser)
 
 var (
-	// ParseComments causes comments to be parsed.
-	ParseComments Option = parseComments
-	parseComments        = func(p *parser) {
-		p.mode |= parseCommentsMode
-	}
-
 	// Trace causes parsing to print a trace of parsed productions.
 	Trace    Option = traceOpt
 	traceOpt        = func(p *parser) {
@@ -58,27 +52,7 @@ const (
 	allErrorsMode                      // report all errors (not just the first 10 on different lines)
 )
 
-// ParseFile parses the source code of a single CUE source file and returns
-// the corresponding File node. The source code may be provided via
-// the filename of the source file, or via the src parameter.
-//
-// If src != nil, ParseFile parses the source from src and the filename is
-// only used when recording position information. The type of the argument
-// for the src parameter must be string, []byte, or io.Reader.
-// If src == nil, ParseFile parses the file specified by filename.
-//
-// The mode parameter controls the amount of source text parsed and other
-// optional parser functionality. Position information is recorded in the
-// file set fset, which must not be nil.
-//
-// If the source couldn't be read, the returned AST is nil and the error
-// indicates the specific failure. If the source was read but syntax
-// errors were found, the result is a partial AST (with Bad* nodes
-// representing the fragments of erroneous source code). Multiple errors
-// are returned via a ErrorList which is sorted by file position.
 func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, err error) {
-
-	// get source
 	text, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
@@ -114,12 +88,7 @@ func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, err
 	return f, pp.errors
 }
 
-// ParseExpr is a convenience function for parsing an expression.
-// The arguments have the same meaning as for Parse, but the source must
-// be a valid CUE (type or value) expression. Specifically, fset must not
-// be nil.
 func ParseExpr(filename string, src io.Reader, mode ...Option) (ast.Expr, error) {
-	// get source
 	text, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err

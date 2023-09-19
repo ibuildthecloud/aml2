@@ -31,3 +31,12 @@ func IndentTabs(s string, n int) string {
 
 	return strings.ReplaceAll(s, search, replace)
 }
+
+const tabIndent = "\t\t\t\t\t\t\t\t\t\t\t\t"
+
+func tabs(n int) string {
+	if n < len(tabIndent) {
+		return tabIndent[:n]
+	}
+	return strings.Repeat("\t", n)
+}

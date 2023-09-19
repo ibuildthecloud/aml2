@@ -26,7 +26,7 @@ func TestSuccessfulBuild(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			require.NoError(t, err)
 
-			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.ParseComments)
+			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data))
 			if err != nil {
 				autogold.ExpectFile(t, err)
 				return

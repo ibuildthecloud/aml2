@@ -30,7 +30,7 @@ func TestSuccessfulEval(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			require.NoError(t, err)
 
-			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.ParseComments)
+			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data))
 			require.NoError(t, err)
 
 			result, err := Build(ast)

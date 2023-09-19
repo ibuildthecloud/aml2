@@ -31,7 +31,7 @@ func (s String) Ne(right Value) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewValue(string(s) == rightString), nil
+	return NewValue(string(s) != rightString), nil
 }
 
 func (s String) Match(right Value) (bool, error) {

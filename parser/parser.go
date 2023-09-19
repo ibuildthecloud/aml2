@@ -42,6 +42,7 @@ type parser struct {
 }
 
 func (p *parser) init(filename string, src []byte, mode []Option) {
+	p.mode = parseCommentsMode
 	p.offset = -1
 	for _, f := range mode {
 		f(p)
@@ -1309,22 +1310,17 @@ func (p *parser) parseFile() *ast.File {
 
 	c := p.comments
 
-	// Don't bother parsing the rest if we had errors scanning the first
-	// Likely not a Go source file at all.
 	if p.errors != nil {
 		return nil
 	}
-	p.openList()
 
-	var decls []ast.Decl
-
-	decls = append(decls, p.parseFieldList()...)
+	decls := p.parseFieldList()
 	p.expect(token.EOF)
-	p.closeList()
 
 	f := &ast.File{
 		Decls: decls,
 	}
+
 	c.closeNode(p, f)
 	return f
 }

@@ -155,7 +155,7 @@ func (n *Object) Merge(right Value) (Value, error) {
 
 	keys, err := Keys(right)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to merge kind %s with %s: %w", ObjectKind, right.Kind(), err)
 	}
 
 	for _, key := range keys {

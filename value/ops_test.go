@@ -23,9 +23,11 @@ func TestUnary(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%s%d", t.Name(), i), func(t *testing.T) {
-			v, err := UnaryOperation(test.op, NewValue(test.val))
+			v, err := UnaryOperation(Operator(test.op), NewValue(test.val))
 			require.NoError(t, err)
-			test.expect.Equal(t, v.NativeValue())
+			nv, _, err := NativeValue(v)
+			require.NoError(t, err)
+			test.expect.Equal(t, nv)
 		})
 	}
 }
@@ -33,28 +35,34 @@ func TestUnary(t *testing.T) {
 func TestIndex(t *testing.T) {
 	v, ok, err := Index(NewValue([]any{
 		"key", "key2",
-	}), 1)
+	}), NewValue(1))
 	require.NoError(t, err)
 	assert.True(t, ok)
-	assert.Equal(t, v.NativeValue(), "key2")
+	nv, _, err := NativeValue(v)
+	require.NoError(t, err)
+	assert.Equal(t, "key2", nv)
 }
 
 func TestSlice(t *testing.T) {
 	v, ok, err := Slice(NewValue([]any{
 		"key", "key2", "key3",
-	}), 1, 3)
+	}), NewValue(1), NewValue(3))
 	require.NoError(t, err)
 	assert.True(t, ok)
-	assert.Equal(t, v.NativeValue(), []any{"key2", "key3"})
+	nv, _, err := NativeValue(v)
+	require.NoError(t, err)
+	assert.Equal(t, []any{"key2", "key3"}, nv)
 }
 
 func TestLookup(t *testing.T) {
 	v, ok, err := Lookup(NewValue(map[string]any{
 		"key": "value",
-	}), "key")
+	}), NewValue("key"))
 	require.NoError(t, err)
 	assert.True(t, ok)
-	assert.Equal(t, v.NativeValue(), "value")
+	nv, _, err := NativeValue(v)
+	require.NoError(t, err)
+	assert.Equal(t, "value", nv)
 }
 
 func TestBinary(t *testing.T) {
@@ -85,10 +93,12 @@ func TestBinary(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%s%d", t.Name(), i), func(t *testing.T) {
-			v, err := BinaryOperation(test.op, NewValue(test.left), NewValue(test.right))
+		t.Run(fmt.Sprintf("%s%d - %s %s %s", t.Name(), i, test.left, test.op, test.right), func(t *testing.T) {
+			v, err := BinaryOperation(Operator(test.op), NewValue(test.left), NewValue(test.right))
 			require.NoError(t, err)
-			test.expect.Equal(t, v.NativeValue())
+			nv, _, err := NativeValue(v)
+			require.NoError(t, err)
+			test.expect.Equal(t, nv)
 		})
 	}
 }

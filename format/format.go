@@ -12,15 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package format implements standard formatting of CUE configurations.
 package format
-
-// TODO: this package is in need of a rewrite. When doing so, the API should
-// allow for reformatting an AST, without actually writing bytes.
-//
-// In essence, formatting determines the relative spacing to tokens. It should
-// be possible to have an abstract implementation providing such information
-// that can be used to either format or update an AST in a single walk.
 
 import (
 	"bytes"
@@ -37,48 +29,6 @@ import (
 // An Option sets behavior of the formatter.
 type Option func(c *config)
 
-// Simplify allows the formatter to simplify output, such as removing
-// unnecessary quotes.
-func Simplify() Option {
-	return func(c *config) { c.simplify = true }
-}
-
-// UseSpaces specifies that tabs should be converted to spaces and sets the
-// default tab width.
-func UseSpaces(tabwidth int) Option {
-	return func(c *config) {
-		c.UseSpaces = true
-		c.Tabwidth = tabwidth
-	}
-}
-
-// TabIndent specifies whether to use tabs for indentation independent of
-// UseSpaces.
-func TabIndent(indent bool) Option {
-	return func(c *config) { c.TabIndent = indent }
-}
-
-// IndentPrefix specifies the number of tabstops to use as a prefix for every
-// line.
-func IndentPrefix(n int) Option {
-	return func(c *config) { c.Indent = n }
-}
-
-// TODO: make public
-// sortImportsOption causes import declarations to be sorted.
-func sortImportsOption() Option {
-	return func(c *config) { c.sortImports = true }
-}
-
-// TODO: other options:
-//
-// const (
-// 	RawFormat Mode = 1 << iota // do not use a tabwriter; if set, UseSpaces is ignored
-// 	TabIndent                  // use tabs for indentation independent of UseSpaces
-// 	UseSpaces                  // use spaces instead of tabs for alignment
-// 	SourcePos                  // emit //line comments to preserve original source positions
-// )
-
 // Node formats node in canonical cue fmt style and writes the result to dst.
 //
 // The node type must be *ast.File, []syntax.Decl, syntax.Expr, syntax.Decl, or
@@ -93,22 +43,10 @@ func Node(node ast.Node, opt ...Option) ([]byte, error) {
 	return cfg.fprint(node)
 }
 
-// Source formats src in canonical cue fmt style and returns the result or an
-// (I/O or syntax) error. src is expected to be a syntactically correct CUE
-// source file, or a list of CUE declarations or statements.
-//
-// If src is a partial source file, the leading and trailing space of src is
-// applied to the result (such that it has the same leading and trailing space
-// as src), and the result is indented by the same amount as the first line of
-// src containing code. Imports are not sorted for partial source files.
-//
-// Caution: Tools relying on consistent formatting based on the installed
-// version of cue (for instance, such as for presubmit checks) should execute
-// that cue binary instead of calling Source.
-func Source(b io.Reader, opt ...Option) ([]byte, error) {
+func Format(b io.Reader, opt ...Option) ([]byte, error) {
 	cfg := newConfig(opt)
 
-	f, err := parser.ParseFile("", b, parser.ParseComments)
+	f, err := parser.ParseFile("", b)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %s", err)
 	}
@@ -122,9 +60,6 @@ type config struct {
 	TabIndent bool
 	Tabwidth  int // default: 4
 	Indent    int // default: 0 (all code is indented at least by this much)
-
-	simplify    bool
-	sortImports bool
 }
 
 func newConfig(opt []Option) *config {

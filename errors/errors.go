@@ -27,8 +27,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mpvl/unique"
-
 	"github.com/acorn-io/aml/token"
 )
 
@@ -82,12 +80,6 @@ func NewMessagef(format string, args ...interface{}) Message {
 		_ = fmt.Sprintf(format, args...)
 	}
 	return Message{format: format, args: args}
-}
-
-// NewMessage creates an error message for human consumption.
-// Deprecated: Use NewMessagef instead.
-func NewMessage(format string, args []interface{}) Message {
-	return NewMessagef(format, args...)
 }
 
 // Msg returns a printf-style format string and its arguments for human
@@ -148,8 +140,25 @@ func Positions(err error) []token.Pos {
 
 	byPos := byPos(a[sortOffset:])
 	sort.Sort(byPos)
-	k := unique.ToFront(byPos)
+	k := toFront(byPos)
 	return a[:k+sortOffset]
+}
+
+// ToFront reports the number of unique elements of data which it moves to the
+// first n positions. It assumes sort.IsSorted(data).
+func toFront(data sort.Interface) (n int) {
+	n = data.Len()
+	if n == 0 {
+		return
+	}
+	k := 0
+	for i := 1; i < n; i++ {
+		if data.Less(k, i) {
+			k++
+			data.Swap(k, i)
+		}
+	}
+	return k + 1
 }
 
 type byPos []token.Pos

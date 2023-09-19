@@ -25,11 +25,11 @@ func TestFormat(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			require.NoError(t, err)
 
-			out, err := Source(bytes.NewReader(data))
+			out, err := Format(bytes.NewReader(data))
 			if err != nil {
 				autogold.ExpectFile(t, err)
 			} else {
-				autogold.ExpectFile(t, string(out))
+				autogold.ExpectFile(t, autogold.Raw(out))
 			}
 		})
 	}

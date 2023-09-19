@@ -409,12 +409,6 @@ func mayCombine(prev, next token.Token) (before, after bool) {
 	switch prev {
 	case token.INT:
 		before = next == token.PERIOD // 1.
-	case token.ADD:
-		before = s[0] == '+' // ++
-	case token.SUB:
-		before = s[0] == '-' // --
-	case token.QUO:
-		before = s[0] == '*' // /*
 	}
 	return before, false
 }

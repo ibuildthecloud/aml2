@@ -3,8 +3,6 @@ package ast
 import (
 	"strings"
 	"unicode/utf8"
-
-	"github.com/acorn-io/aml/errors"
 )
 
 func isAllowedCharacter(ch rune) bool {
@@ -43,7 +41,3 @@ func IsValidIdent(ident string) bool {
 	}
 	return true
 }
-
-// ErrIsExpression reports whether a label is an expression.
-// This error is never returned directly. Use errors.Is.
-var ErrIsExpression = errors.New("not a concrete label")
