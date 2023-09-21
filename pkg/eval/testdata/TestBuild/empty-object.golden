@@ -1,0 +1,5 @@
+&eval.File{Body: &eval.Struct{
+	Fields: []eval.Field{&eval.Embedded{
+		Expression: &eval.Struct{},
+	}},
+}}
