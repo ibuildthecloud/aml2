@@ -3,6 +3,7 @@ package eval
 import (
 	"sort"
 
+	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
@@ -13,12 +14,38 @@ type File struct {
 	Body           *Struct
 }
 
-func (f *File) ToValue(scope Scope) (value.Value, bool, error) {
+func (f *File) ToSchema() (*schema.File, error) {
+	fun, ok, err := f.ToFunction(Builtin)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		return &schema.File{}, nil
+	}
+
+	args := fun.(*Function).ArgsSchema
+	profiles := fun.(*Function).ProfileNames
+
+	argsSchema, err := value.ToSchema(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.File{
+		Args:     *argsSchema,
+		Profiles: profiles,
+	}, nil
+}
+
+func (f *File) ToFunction(scope Scope) (value.Value, bool, error) {
 	def := &FunctionDefinition{
 		Body:       f.Body,
 		ReturnBody: true,
 	}
-	call, ok, err := def.ToValue(scope)
+	return def.ToValue(scope)
+}
+
+func (f *File) ToValue(scope Scope) (value.Value, bool, error) {
+	call, ok, err := f.ToFunction(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}

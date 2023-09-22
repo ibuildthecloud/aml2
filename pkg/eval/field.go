@@ -15,7 +15,7 @@ var (
 type Field interface {
 	Expression
 	Keys(scope Scope) ([]string, error)
-	Schema(scope Scope, seen map[string]struct{}) ([]schema.Field, error)
+	GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error)
 	// ToValueForKey should return the value (right hand side) for this key. If the key evaluates to undefined
 	// then (nil, false, nil) should be returned. If the value (right hand side) evaluates to undefined, undefined
 	// should be returned
@@ -31,7 +31,7 @@ type KeyValue struct {
 	Optional bool
 }
 
-func (k *KeyValue) Schema(scope Scope, seen map[string]struct{}) ([]schema.Field, error) {
+func (k *KeyValue) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
 	key, ok, err := k.Key.ToString(scope)
 	if err != nil {
 		return nil, err
@@ -46,14 +46,7 @@ func (k *KeyValue) Schema(scope Scope, seen map[string]struct{}) ([]schema.Field
 		return nil, nil
 	}
 
-	nv, ok, err := value.NativeValue(v)
-	if err != nil {
-		return nil, err
-	} else if !ok {
-		return nil, nil
-	}
-
-	f, err := getFields(nv, seen)
+	f, err := getFields(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -202,11 +195,11 @@ func (k *FieldKey) Matches(scope Scope, key string) (_ bool, returnErr error) {
 	return keyPattern == key, nil
 }
 
-func getFields(nv any, seen map[string]struct{}) ([]schema.Field, error) {
-	if f, ok := nv.(interface {
-		GetFields(seen map[string]struct{}) []schema.Field
+func getFields(ctx value.SchemaContext, val value.Value) ([]schema.Field, error) {
+	if f, ok := val.(interface {
+		Fields(ctx value.SchemaContext) ([]schema.Field, error)
 	}); ok {
-		return f.GetFields(seen), nil
+		return f.Fields(ctx)
 	}
-	return nil, fmt.Errorf("invalid type %T does not provide fields", nv)
+	return nil, fmt.Errorf("invalid type %T does not provide schema fields", val)
 }

@@ -7,6 +7,27 @@ import (
 	"github.com/acorn-io/aml/pkg/schema"
 )
 
+type Schemaer interface {
+	Schema(ctx SchemaContext) (*schema.Object, bool, error)
+}
+
+func ToSchema(val Value) (*schema.Object, error) {
+	if err := assertType(val, SchemaKind); err != nil {
+		return nil, err
+	}
+	if s, ok := val.(Schemaer); ok {
+		schema, ok, err := s.Schema(SchemaContext{})
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("value did not provide a schema")
+		}
+		return schema, nil
+	}
+	return nil, fmt.Errorf("value can not be converted to schema")
+}
+
 type ObjectSchema struct {
 	Contract Contract
 }
@@ -14,7 +35,7 @@ type ObjectSchema struct {
 type Contract interface {
 	Path() string
 	Description() string
-	Fields(seen map[string]struct{}) ([]schema.Field, error)
+	Fields(ctx SchemaContext) ([]schema.Field, error)
 	RequiredKeys() ([]string, error)
 	LookupValue(key string) (Value, bool, error)
 	AllowNewKeys() bool
@@ -34,13 +55,37 @@ func (n *ObjectSchema) Kind() Kind {
 	return SchemaKind
 }
 
-func (n *ObjectSchema) Schema(seen map[string]struct{}) (any, bool, error) {
-	if _, ok := seen[n.Contract.Path()]; ok {
-		return nil, false, nil
+func (n *ObjectSchema) Fields(ctx SchemaContext) (result []schema.Field, _ error) {
+	if ctx.haveSeen(n.Contract.Path()) {
+		return nil, nil
 	}
 
-	seen[n.Contract.Path()] = struct{}{}
-	fields, err := n.Contract.Fields(seen)
+	ctx.addSeen(n.Contract.Path())
+
+	fields, err := n.Contract.Fields(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		fieldNames   = map[string]int{}
+		mergedFields []schema.Field
+	)
+
+	for _, field := range fields {
+		if i, ok := fieldNames[field.Name]; ok {
+			mergedFields[i] = mergedFields[i].Merge(field)
+		} else {
+			fieldNames[field.Name] = len(mergedFields)
+			mergedFields = append(mergedFields, field)
+		}
+	}
+
+	return mergedFields, nil
+}
+
+func (n *ObjectSchema) Schema(ctx SchemaContext) (*schema.Object, bool, error) {
+	fields, err := n.Fields(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -50,7 +95,7 @@ func (n *ObjectSchema) Schema(seen map[string]struct{}) (any, bool, error) {
 		Path:         n.Contract.Path(),
 		Fields:       fields,
 		AllowNewKeys: n.Contract.AllowNewKeys(),
-	}, false, nil
+	}, true, nil
 }
 
 func (n *ObjectSchema) Keys() ([]string, error) {
@@ -171,13 +216,13 @@ func (m *mergedContract) Description() string {
 	return strings.Join(parts, "\n")
 }
 
-func (m *mergedContract) Fields(seen map[string]struct{}) ([]schema.Field, error) {
-	leftFields, err := m.Left.Fields(seen)
+func (m *mergedContract) Fields(ctx SchemaContext) ([]schema.Field, error) {
+	leftFields, err := m.Left.Fields(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rightFields, err := m.Right.Fields(seen)
+	rightFields, err := m.Right.Fields(ctx)
 	if err != nil {
 		return nil, err
 	}

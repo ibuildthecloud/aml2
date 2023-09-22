@@ -27,8 +27,16 @@ func (c *contract) Description() string {
 	return c.s.Comments.Last()
 }
 
-func (c *contract) Fields(seen map[string]struct{}) (result []schema.Field, _ error) {
-	return c.s.FieldsSchema(c.scope, seen)
+func (c *contract) Fields(ctx value.SchemaContext) (result []schema.Field, _ error) {
+	scope := c.scope.Push(c.s)
+	for _, field := range c.s.Fields {
+		schema, err := field.GetFields(ctx, scope)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, schema...)
+	}
+	return result, nil
 }
 
 func (c *contract) Path() string {

@@ -3,25 +3,12 @@ package eval
 import (
 	"strings"
 
-	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
 type Struct struct {
 	Comments Comments
 	Fields   []Field
-}
-
-func (s *Struct) FieldsSchema(scope Scope, seen map[string]struct{}) (result []schema.Field, error error) {
-	scope = scope.Push(s)
-	for _, field := range s.Fields {
-		schema, err := field.Schema(scope, seen)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, schema...)
-	}
-	return
 }
 
 func (s *Struct) ScopeLookup(scope Scope, key string) (value.Value, bool, error) {

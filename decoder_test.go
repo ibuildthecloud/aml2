@@ -8,16 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnmarshal(t *testing.T) {
-	data := map[string]any{}
-
-	err := Unmarshal([]byte(`
+const testDocument = `
 args: foo: 1
 args: two: 10
 args: bar: 1
+args: bar: number < 10
 x: args.foo + args.bar + args.two
 profiles: baz: two: 2
-`), &data, Option{
+`
+
+func TestUnmarshal(t *testing.T) {
+	data := map[string]any{}
+
+	err := Unmarshal([]byte(testDocument), &data, Option{
 		PositionalArgs: []any{3},
 		Args: map[string]any{
 			"bar": 2,
@@ -32,28 +35,9 @@ profiles: baz: two: 2
 }
 
 func TestSchemaUnmarshal(t *testing.T) {
-	out := &schema.Object{}
-	err := Unmarshal([]byte(`
-// This is an object
-{
-	// This is a field
-	foo: string != "" || number
-}
-`), out, Option{ParseAsSchema: true})
+	out := &schema.File{}
+	err := Unmarshal([]byte(testDocument), out)
 	require.NoError(t, err)
 
-	autogold.Expect(&schema.Object{Fields: []schema.Field{
-		{
-			Name:        "foo",
-			Description: "This is a field",
-			Type: schema.FieldType{
-				Kind: "string",
-				Constraint: []schema.Constraint{{
-					Op:    "!=",
-					Right: "",
-				}},
-			},
-			Union: []schema.FieldType{{Kind: "number"}},
-		},
-	}}).Equal(t, out)
+	autogold.Expect(nil).Equal(t, out)
 }

@@ -15,7 +15,7 @@ type Embedded struct {
 	Expression Expression
 }
 
-func (e *Embedded) Schema(scope Scope, seen map[string]struct{}) ([]schema.Field, error) {
+func (e *Embedded) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
 	v, ok, err := e.ToValue(scope)
 	if err != nil {
 		return nil, err
@@ -23,14 +23,7 @@ func (e *Embedded) Schema(scope Scope, seen map[string]struct{}) ([]schema.Field
 		return nil, nil
 	}
 
-	nv, ok, err := value.NativeValue(v)
-	if err != nil {
-		return nil, err
-	} else if !ok {
-		return nil, nil
-	}
-
-	return getFields(nv, seen)
+	return getFields(ctx, v)
 }
 
 func (e *Embedded) IsPositionalArgument() bool {

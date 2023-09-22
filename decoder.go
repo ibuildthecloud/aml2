@@ -9,6 +9,7 @@ import (
 	"github.com/acorn-io/aml/pkg/ast"
 	"github.com/acorn-io/aml/pkg/eval"
 	"github.com/acorn-io/aml/pkg/parser"
+	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
@@ -17,7 +18,6 @@ type Option struct {
 	Args           map[string]any
 	Profiles       []string
 	SourceName     string
-	ParseAsSchema  bool
 }
 
 func (o Option) Complete() Option {
@@ -35,9 +35,6 @@ func (o Options) Merge() (result Option) {
 		result.Profiles = append(result.Profiles, opt.Profiles...)
 		if opt.SourceName != "" {
 			result.SourceName = opt.SourceName
-		}
-		if opt.ParseAsSchema {
-			result.ParseAsSchema = true
 		}
 		if len(opt.Args) > 0 && result.Args == nil {
 			result.Args = map[string]any{}
@@ -85,10 +82,17 @@ func (d *Decoder) Decode(out any) error {
 		return nil
 	}
 
-	scope := eval.Builtin.Push(eval.ScopeData(nil), eval.ScopeOption{
-		Schema: d.opts.ParseAsSchema,
-	})
-	val, ok, err := file.ToValue(scope)
+	switch n := out.(type) {
+	case *schema.File:
+		fileSchema, err := file.ToSchema()
+		if err != nil {
+			return err
+		}
+		*n = *fileSchema
+		return nil
+	}
+
+	val, ok, err := file.ToValue(eval.Builtin)
 	if err != nil {
 		return err
 	} else if !ok {

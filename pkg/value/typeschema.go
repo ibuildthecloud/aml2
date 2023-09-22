@@ -7,6 +7,22 @@ import (
 	"github.com/acorn-io/aml/pkg/schema"
 )
 
+type SchemaContext struct {
+	seen map[string]struct{}
+}
+
+func (s *SchemaContext) haveSeen(path string) bool {
+	_, ok := s.seen[path]
+	return ok
+}
+
+func (s *SchemaContext) addSeen(path string) {
+	if s.seen == nil {
+		s.seen = map[string]struct{}{}
+	}
+	s.seen[path] = struct{}{}
+}
+
 type TypeSchema struct {
 	KindValue    Kind
 	Constraints  []Checker
@@ -81,32 +97,24 @@ func typeSchemaToFieldType(n *TypeSchema) (result schema.FieldType, _ bool, _ er
 		if err != nil || !ok {
 			return result, ok, err
 		}
-		result.Alternative = &alt
+		result.Alternate = &alt
 	}
 
 	return result, true, nil
 }
 
-func (n *TypeSchema) Schema(seen map[string]struct{}) (any, bool, error) {
-	//	if n.DefaultValue != nil {
-	//		return n.DefaultValue, true, nil
-	//	}
-	//	if n.Alternate != nil {
-	//		return n.Alternate.NativeValue()
-	//	}
-	//	return nil, false, fmt.Errorf("unspecified value of kind %s", n.KindValue)
-	//}
-	//
-	//func (n *TypeSchema) Schema() (any, bool, error) {
-	field := &schema.Field{}
+func (n *TypeSchema) Fields(_ SchemaContext) ([]schema.Field, error) {
+	var field schema.Field
 
 	fieldType, ok, err := typeSchemaToFieldType(n)
-	if err != nil || !ok {
-		return nil, ok, err
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, nil
 	}
 
 	field.Type = fieldType
-	return field, false, nil
+	return []schema.Field{field}, nil
 }
 
 func (n *TypeSchema) Eq(right Value) (Value, error) {
@@ -182,7 +190,7 @@ func (n *TypeSchema) And(right Value) (Value, error) {
 	}
 
 	cp := *n
-	cp.Alternate = addOr(&cp, rightSchema.Alternate)
+	cp.Alternate = mergeAlternate(&cp, rightSchema.Alternate)
 	cp.Constraints = append(cp.Constraints, rightSchema.Constraints...)
 	if cp.DefaultValue == nil {
 		cp.DefaultValue = rightSchema.DefaultValue
@@ -203,12 +211,12 @@ func (n *TypeSchema) And(right Value) (Value, error) {
 	return &cp, nil
 }
 
-func addOr(left, right *TypeSchema) *TypeSchema {
+func mergeAlternate(left, right *TypeSchema) *TypeSchema {
 	cp := *left
 	if cp.Alternate == nil {
 		cp.Alternate = right
 	} else {
-		cp.Alternate = addOr(left.Alternate, right)
+		cp.Alternate = mergeAlternate(left.Alternate, right)
 	}
 	return &cp
 }
@@ -222,7 +230,7 @@ func (n *TypeSchema) Or(right Value) (Value, error) {
 		}
 	}
 
-	return addOr(n, rightSchema), nil
+	return mergeAlternate(n, rightSchema), nil
 }
 
 func (n *TypeSchema) Default() (Value, bool) {
