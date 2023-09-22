@@ -9,7 +9,12 @@ import (
 )
 
 const testDocument = `
-args: foo: 1
+args: {
+// Foo
+foo: 1
+// Foo2
+foo: string
+}
 args: two: 10
 args: bar: 1
 args: bar: number < 10

@@ -81,7 +81,7 @@ func (k *KeyValue) Keys(scope Scope) ([]string, error) {
 	return []string{s}, nil
 }
 
-func (k *KeyValue) getValueValue(scope Scope, key string) (value.Value, bool, error) {
+func (k *KeyValue) getValueValue(scope Scope, key string) (ret value.Value, _ bool, _ error) {
 	scope = scope.Push(ScopeData(nil), ScopeOption{
 		Path: key,
 	})

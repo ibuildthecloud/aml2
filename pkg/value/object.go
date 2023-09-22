@@ -138,17 +138,41 @@ func (n *Object) Keys() ([]string, error) {
 	return result, nil
 }
 
-func (n *Object) Merge(right Value) (Value, error) {
-	if err := assertKindsMatch(n, right); err != nil {
+func Entries(val Value) (result []Entry, _ error) {
+	keys, err := Keys(val)
+	if err != nil {
 		return nil, err
 	}
 
+	for _, key := range keys {
+		v, ok, err := Lookup(val, NewValue(key))
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		result = append(result, Entry{
+			Key:   key,
+			Value: v,
+		})
+	}
+
+	return
+}
+
+func MergeObjects(left, right Value, allowNewKeys bool) (Value, error) {
 	var (
 		result   []Entry
 		keysSeen = map[string]int{}
 	)
 
-	for _, entry := range n.Entries {
+	leftEntries, err := Entries(left)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range leftEntries {
 		keysSeen[entry.Key] = len(result)
 		result = append(result, entry)
 	}
@@ -173,18 +197,29 @@ func (n *Object) Merge(right Value) (Value, error) {
 				return nil, err
 			}
 			result[i].Value = rightValue
-		} else {
+		} else if allowNewKeys {
 			result = append(result, Entry{
 				Key:   key,
 				Value: rightValue,
 			})
+		} else {
+			return nil, &ErrUnknownField{
+				Key: key,
+			}
 		}
-
 	}
 
 	return &Object{
 		Entries: result,
 	}, nil
+}
+
+func (n *Object) Merge(right Value) (Value, error) {
+	if err := assertKindsMatch(n, right); err != nil {
+		return nil, err
+	}
+
+	return MergeObjects(n, right, true)
 }
 
 type Entry struct {

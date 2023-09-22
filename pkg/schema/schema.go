@@ -31,7 +31,11 @@ type Field struct {
 func (f *Field) Merge(right Field) (result Field) {
 	result = *f
 	if right.Description != "" {
-		result.Description = right.Description
+		if result.Description != "" {
+			result.Description = result.Description + "\n" + right.Description
+		} else {
+			result.Description = right.Description
+		}
 	}
 	result.Match = f.Match && right.Match
 	result.Optional = f.Optional && right.Optional
