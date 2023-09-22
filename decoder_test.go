@@ -4,16 +4,17 @@ import (
 	"testing"
 
 	"github.com/acorn-io/aml/pkg/schema"
+	"github.com/acorn-io/aml/pkg/value"
 	"github.com/hexops/autogold/v2"
 	"github.com/stretchr/testify/require"
 )
 
 const testDocument = `
 args: {
-// Foo
-foo: 1
-// Foo2
-foo: string
+	// Foo
+	foo: 1
+	// Foo2
+	foo: number
 }
 args: two: 10
 args: bar: 1
@@ -44,5 +45,40 @@ func TestSchemaUnmarshal(t *testing.T) {
 	err := Unmarshal([]byte(testDocument), out)
 	require.NoError(t, err)
 
-	autogold.Expect(nil).Equal(t, out)
+	autogold.Expect(&schema.File{
+		Args: schema.Object{
+			Path: "args",
+			Fields: []schema.Field{
+				{
+					Name:        "foo",
+					Description: "Foo\nFoo2",
+					Type: schema.FieldType{
+						Kind:    "number",
+						Default: value.Number("1"),
+					},
+				},
+				{
+					Name: "two",
+					Type: schema.FieldType{
+						Kind:    "number",
+						Default: value.Number("10"),
+					},
+				},
+				{
+					Name: "bar",
+					Type: schema.FieldType{
+						Kind: "number",
+						Constraint: []schema.Constraint{
+							{
+								Op:    "<",
+								Right: value.Number("10"),
+							},
+						},
+						Default: value.Number("1"),
+					},
+				},
+			},
+		},
+		Profiles: []string{"baz"},
+	}).Equal(t, out)
 }
