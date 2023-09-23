@@ -841,6 +841,9 @@ func (p *parser) checkAndParseValidLabel(expr ast.Expr) (matchPos token.Pos, _ a
 		return token.NoPos, nil, false
 	} else if ident, ok := label.(*ast.Ident); ok {
 		if ident.Name == "match" {
+			if p.mode&allowMatchMode == 0 {
+				p.errf(ident.Pos(), "match is not allowed as a key, reserved for possible future use")
+			}
 			expr := p.parseExpr()
 			if str, ok := expr.(*ast.BasicLit); ok && str.Kind == token.STRING {
 				return ident.Pos(), str, true

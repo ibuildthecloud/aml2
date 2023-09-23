@@ -39,6 +39,11 @@ var (
 	allErrors        = func(p *parser) {
 		p.mode |= allErrorsMode
 	}
+
+	AllowMatch Option = allowMatch
+	allowMatch        = func(p *parser) {
+		p.mode |= allowMatchMode
+	}
 )
 
 // A mode value is a set of flags (or 0).
@@ -48,8 +53,9 @@ type mode uint
 
 const (
 	parseCommentsMode mode = 1 << iota // parse comments and add them to AST
-	traceMode                          // print a trace of parsed productions
-	allErrorsMode                      // report all errors (not just the first 10 on different lines)
+	allowMatchMode
+	traceMode     // print a trace of parsed productions
+	allErrorsMode // report all errors (not just the first 10 on different lines)
 )
 
 func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, err error) {

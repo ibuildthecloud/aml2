@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/acorn-io/aml/pkg/parser"
 	"github.com/hexops/autogold/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,13 @@ func TestFormat(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
 			require.NoError(t, err)
 
-			out, err := Format(bytes.NewReader(data))
+			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data), parser.AllowMatch)
+			if err != nil {
+				autogold.ExpectFile(t, err)
+				return
+			}
+
+			out, err := Node(ast)
 			if err != nil {
 				autogold.ExpectFile(t, err)
 			} else {

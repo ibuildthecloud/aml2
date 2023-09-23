@@ -29,30 +29,18 @@ import (
 // An Option sets behavior of the formatter.
 type Option func(c *config)
 
-// Node formats node in canonical cue fmt style and writes the result to dst.
-//
-// The node type must be *ast.File, []syntax.Decl, syntax.Expr, syntax.Decl, or
-// syntax.Spec. Node does not modify node. Imports are not sorted for nodes
-// representing partial source files (for instance, if the node is not an
-// *ast.File).
-//
-// The function may return early (before the entire result is written) and
-// return a formatting error, for instance due to an incorrect AST.
 func Node(node ast.Node, opt ...Option) ([]byte, error) {
 	cfg := newConfig(opt)
 	return cfg.fprint(node)
 }
 
 func Format(b io.Reader, opt ...Option) ([]byte, error) {
-	cfg := newConfig(opt)
-
 	f, err := parser.ParseFile("", b)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %s", err)
 	}
 
-	// print AST
-	return cfg.fprint(f)
+	return Node(f, opt...)
 }
 
 type config struct {
