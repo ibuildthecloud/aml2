@@ -195,6 +195,24 @@ func (n *TypeSchema) Lt(right Value) (Value, error) {
 	return &result, nil
 }
 
+func (n *TypeSchema) Mat(right Value) (Value, error) {
+	result := *n
+	result.Constraints = append(result.Constraints, &Constraint{
+		Op:    "=~",
+		Right: right,
+	})
+	return &result, nil
+}
+
+func (n *TypeSchema) Nmat(right Value) (Value, error) {
+	result := *n
+	result.Constraints = append(result.Constraints, &Constraint{
+		Op:    "!~",
+		Right: right,
+	})
+	return &result, nil
+}
+
 func TargetKind(v Value) Kind {
 	if tk, ok := v.(interface {
 		TargetKind() Kind

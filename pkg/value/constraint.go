@@ -62,7 +62,7 @@ func (c *Constraint) check(op Operator, left, right Value) error {
 
 func (c *Constraint) Check(left Value) error {
 	switch Operator(c.Op) {
-	case GtOp, GeOp, LtOp, LeOp, EqOp, NeqOp:
+	case GtOp, GeOp, LtOp, LeOp, EqOp, NeqOp, MatOp, NmatOp:
 		return c.check(Operator(c.Op), left, c.Right)
 	default:
 		return fmt.Errorf("unknown operator for constraint: %s", c.Op)

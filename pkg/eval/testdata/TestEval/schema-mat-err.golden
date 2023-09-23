@@ -1,0 +1,6 @@
+&errors.joinError{errs: []error{
+	&errors.errorString{s: "unmatched constraint bye =~ hi.*"},
+	&errors.joinError{errs: []error{
+		&errors.errorString{s: "unmatched constraint bye =~ hi.*"},
+	}},
+}}

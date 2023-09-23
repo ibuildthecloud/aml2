@@ -230,19 +230,21 @@ func UnaryOperation(op Operator, val Value) (Value, error) {
 type Operator string
 
 const (
-	AddOp = Operator("+")
-	SubOp = Operator("-")
-	MulOp = Operator("*")
-	DivOp = Operator("/")
-	AndOp = Operator("&&")
-	OrOp  = Operator("||")
-	LtOp  = Operator("<")
-	LeOp  = Operator("<=")
-	GtOp  = Operator(">")
-	GeOp  = Operator(">=")
-	EqOp  = Operator("==")
-	NeqOp = Operator("!=")
-	NotOp = Operator("!")
+	AddOp  = Operator("+")
+	SubOp  = Operator("-")
+	MulOp  = Operator("*")
+	DivOp  = Operator("/")
+	AndOp  = Operator("&&")
+	OrOp   = Operator("||")
+	LtOp   = Operator("<")
+	LeOp   = Operator("<=")
+	GtOp   = Operator(">")
+	GeOp   = Operator(">=")
+	EqOp   = Operator("==")
+	NeqOp  = Operator("!=")
+	NotOp  = Operator("!")
+	MatOp  = Operator("=~")
+	NmatOp = Operator("!~")
 )
 
 func BinaryOperation(op Operator, left, right Value) (Value, error) {
@@ -275,6 +277,10 @@ func BinaryOperation(op Operator, left, right Value) (Value, error) {
 		return Eq(left, right)
 	case NeqOp:
 		return Neq(left, right)
+	case MatOp:
+		return Mat(left, right)
+	case NmatOp:
+		return Nmat(left, right)
 	default:
 		return nil, fmt.Errorf("unsupported operator %s", op)
 	}
@@ -422,6 +428,30 @@ func Neq(left, right Value) (Value, error) {
 		return adder.Neq(right)
 	}
 	return nil, fmt.Errorf("value kind %s does not support != operation", left.Kind())
+}
+
+type Mater interface {
+	Mat(right Value) (Value, error)
+}
+
+func Mat(left, right Value) (Value, error) {
+	adder, ok := left.(Mater)
+	if ok {
+		return adder.Mat(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support =~ operation", left.Kind())
+}
+
+type Nmater interface {
+	Nmat(right Value) (Value, error)
+}
+
+func Nmat(left, right Value) (Value, error) {
+	adder, ok := left.(Nmater)
+	if ok {
+		return adder.Nmat(right)
+	}
+	return nil, fmt.Errorf("value kind %s does not support !~ operation", left.Kind())
 }
 
 type Keyser interface {

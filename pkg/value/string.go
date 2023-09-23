@@ -12,6 +12,39 @@ func (s String) NativeValue() (any, bool, error) {
 	return (string)(s), true, nil
 }
 
+func (s String) Mat(right Value) (Value, error) {
+	if err := assertType(right, StringKind); err != nil {
+		return nil, err
+	}
+	rightString, err := ToString(right)
+	if err != nil {
+		return nil, err
+	}
+	re, err := regexp.Compile(rightString)
+	if err != nil {
+		return nil, err
+	}
+
+	m := re.FindStringIndex(string(s))
+	// regexp must fully match string, not a subset of it
+	return NewValue(m != nil && m[0] == 0 && m[1] == len(rightString)), nil
+}
+
+func (s String) Nmat(right Value) (Value, error) {
+	if err := assertType(right, StringKind); err != nil {
+		return nil, err
+	}
+	rightString, err := ToString(right)
+	if err != nil {
+		return nil, err
+	}
+	re, err := regexp.Compile(rightString)
+	if err != nil {
+		return nil, err
+	}
+	return NewValue(!re.MatchString(string(s))), nil
+}
+
 func (s String) Eq(right Value) (Value, error) {
 	if err := assertType(right, StringKind); err != nil {
 		return nil, err
