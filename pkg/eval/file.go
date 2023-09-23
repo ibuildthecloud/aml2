@@ -25,7 +25,7 @@ func (f *File) ToSchema() (*schema.File, error) {
 	args := fun.(*Function).ArgsSchema
 	profiles := fun.(*Function).ProfileNames
 
-	argsSchema, err := value.ToSchema(args)
+	argsSchema, err := value.DescribeObject(value.SchemaContext{}, args)
 	if err != nil {
 		return nil, err
 	}

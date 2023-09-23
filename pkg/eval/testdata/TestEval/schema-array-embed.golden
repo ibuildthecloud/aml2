@@ -1,0 +1,4 @@
+&errors.joinError{errs: []error{
+	&errors.errorString{s: `expected kind object, got array (value: ["hi"])`},
+	&errors.errorString{s: "in schemas embedded expressions must evaluate to kind object, not array"},
+}}

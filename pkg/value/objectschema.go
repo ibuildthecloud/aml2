@@ -1,31 +1,32 @@
 package value
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/acorn-io/aml/pkg/schema"
 )
 
-type Schemaer interface {
-	Schema(ctx SchemaContext) (*schema.Object, bool, error)
+type DescribeObjecter interface {
+	DescribeObject(ctx SchemaContext) (*schema.Object, bool, error)
 }
 
-func ToSchema(val Value) (*schema.Object, error) {
+func DescribeObject(ctx SchemaContext, val Value) (*schema.Object, error) {
 	if err := assertType(val, SchemaKind); err != nil {
 		return nil, err
 	}
-	if s, ok := val.(Schemaer); ok {
-		schema, ok, err := s.Schema(SchemaContext{})
+	if s, ok := val.(DescribeObjecter); ok {
+		schema, ok, err := s.DescribeObject(ctx)
 		if err != nil {
 			return nil, err
 		}
 		if !ok {
-			return nil, fmt.Errorf("value did not provide a schema")
+			return nil, fmt.Errorf("value kind %s did not provide a schema description", val.Kind())
 		}
 		return schema, nil
 	}
-	return nil, fmt.Errorf("value can not be converted to schema")
+	return nil, fmt.Errorf("value kind %s can not be converted to schema description", val.Kind())
 }
 
 type ObjectSchema struct {
@@ -56,12 +57,6 @@ func (n *ObjectSchema) Kind() Kind {
 }
 
 func (n *ObjectSchema) Fields(ctx SchemaContext) (result []schema.Field, _ error) {
-	if ctx.haveSeen(n.Contract.Path()) {
-		return nil, nil
-	}
-
-	ctx.addSeen(n.Contract.Path())
-
 	fields, err := n.Contract.Fields(ctx)
 	if err != nil {
 		return nil, err
@@ -84,7 +79,18 @@ func (n *ObjectSchema) Fields(ctx SchemaContext) (result []schema.Field, _ error
 	return mergedFields, nil
 }
 
-func (n *ObjectSchema) Schema(ctx SchemaContext) (*schema.Object, bool, error) {
+func (n *ObjectSchema) DescribeObject(ctx SchemaContext) (*schema.Object, bool, error) {
+	if ctx.haveSeen(n.Contract.Path()) {
+		return &schema.Object{
+			Description:  n.Contract.Description(),
+			Path:         n.Contract.Path(),
+			Reference:    true,
+			AllowNewKeys: n.Contract.AllowNewKeys(),
+		}, true, nil
+	}
+
+	ctx.addSeen(n.Contract.Path())
+
 	fields, err := n.Fields(ctx)
 	if err != nil {
 		return nil, false, err
@@ -124,6 +130,11 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 	}
 
 	if err := assertType(right, ObjectKind); err != nil {
+		// This is a check that the schema doesn't have an invalid embeeded
+		_, _, serr := n.DescribeObject(SchemaContext{})
+		if serr != nil {
+			return nil, errors.Join(err, serr)
+		}
 		return nil, err
 	}
 

@@ -1,8 +1,6 @@
 package eval
 
 import (
-	"fmt"
-
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -15,7 +13,7 @@ var (
 type Field interface {
 	Expression
 	Keys(scope Scope) ([]string, error)
-	GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error)
+	DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error)
 	// ToValueForKey should return the value (right hand side) for this key. If the key evaluates to undefined
 	// then (nil, false, nil) should be returned. If the value (right hand side) evaluates to undefined, undefined
 	// should be returned
@@ -31,7 +29,7 @@ type KeyValue struct {
 	Optional bool
 }
 
-func (k *KeyValue) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
+func (k *KeyValue) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
 	key, ok, err := k.Key.ToString(scope)
 	if err != nil {
 		return nil, err
@@ -46,21 +44,20 @@ func (k *KeyValue) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Fie
 		return nil, nil
 	}
 
-	f, err := getFields(ctx, v)
+	ft, err := value.DescribeFieldType(ctx, v)
 	if err != nil {
 		return nil, err
 	}
-	if len(f) != 1 {
-		return nil, fmt.Errorf("expected one field but got len(%d)", len(f))
-	}
 
-	field := f[0]
-	field.Name = key
-	field.Match = k.Key.IsMatch()
-	field.Description = k.Comments.Last()
-	field.Optional = k.Optional
-
-	return []schema.Field{field}, nil
+	return []schema.Field{
+		{
+			Name:        key,
+			Match:       k.Key.IsMatch(),
+			Description: k.Comments.Last(),
+			Optional:    k.Optional,
+			Type:        ft,
+		},
+	}, nil
 }
 
 func (k *KeyValue) ToValueForKey(scope Scope, key string) (value.Value, bool, error) {
@@ -82,7 +79,7 @@ func (k *KeyValue) Keys(scope Scope) ([]string, error) {
 }
 
 func (k *KeyValue) getValueValue(scope Scope, key string) (ret value.Value, _ bool, _ error) {
-	scope = scope.Push(ScopeData(nil), ScopeOption{
+	scope = scope.Push(nil, ScopeOption{
 		Path: key,
 	})
 	v, ok, err := k.Value.ToValue(scope)
@@ -193,13 +190,4 @@ func (k *FieldKey) Matches(scope Scope, key string) (_ bool, returnErr error) {
 	}
 
 	return keyPattern == key, nil
-}
-
-func getFields(ctx value.SchemaContext, val value.Value) ([]schema.Field, error) {
-	if f, ok := val.(interface {
-		Fields(ctx value.SchemaContext) ([]schema.Field, error)
-	}); ok {
-		return f.Fields(ctx)
-	}
-	return nil, fmt.Errorf("invalid type %T does not provide schema fields", val)
 }

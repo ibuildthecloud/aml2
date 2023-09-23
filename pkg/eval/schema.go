@@ -12,7 +12,7 @@ type Schema struct {
 }
 
 func (s *Schema) ToValue(scope Scope) (value.Value, bool, error) {
-	return s.Struct.ToValue(scope.Push(ScopeData(nil), ScopeOption{
+	return s.Struct.ToValue(scope.Push(nil, ScopeOption{
 		Schema:       true,
 		AllowNewKeys: s.AllowNewFields,
 	}))
@@ -29,8 +29,9 @@ func (c *contract) Description() string {
 
 func (c *contract) Fields(ctx value.SchemaContext) (result []schema.Field, _ error) {
 	scope := c.scope.Push(c.s)
-	for _, field := range c.s.Fields {
-		schema, err := field.GetFields(ctx, scope)
+	for i, field := range c.s.Fields {
+		ctx.SetIndex(i)
+		schema, err := field.DescribeFields(ctx, scope)
 		if err != nil {
 			return nil, err
 		}

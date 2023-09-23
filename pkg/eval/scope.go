@@ -127,6 +127,9 @@ func (n nested) Path() string {
 }
 
 func scopePush(n Scope, lookup ScopeLookuper, opts ...ScopeOption) Scope {
+	if lookup == nil {
+		lookup = ScopeData(nil)
+	}
 	o := combine(opts)
 	return nested{
 		path:   appendPath(n.Path(), o.Path),

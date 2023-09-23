@@ -7,27 +7,6 @@ import (
 	"github.com/acorn-io/aml/pkg/value"
 )
 
-type Array struct {
-	Comments Comments
-	Items    []Expression
-}
-
-func (a *Array) ToValue(scope Scope) (value.Value, bool, error) {
-	var objs []any
-
-	for _, item := range a.Items {
-		v, ok, err := item.ToValue(scope)
-		if err != nil {
-			return nil, false, err
-		}
-		if !ok {
-			continue
-		}
-		objs = append(objs, v)
-	}
-	return value.NewArray(objs), true, nil
-}
-
 type Parens struct {
 	Comments Comments
 	Expr     Expression
@@ -40,7 +19,7 @@ type Default struct {
 }
 
 func (d *Default) ToValue(scope Scope) (value.Value, bool, error) {
-	v, ok, err := d.Expr.ToValue(scope.Push(ScopeData(nil), ScopeOption{
+	v, ok, err := d.Expr.ToValue(scope.Push(nil, ScopeOption{
 		Default: true,
 	}))
 	if err != nil || !ok {
@@ -50,7 +29,7 @@ func (d *Default) ToValue(scope Scope) (value.Value, bool, error) {
 }
 
 func (p *Parens) ToValue(scope Scope) (value.Value, bool, error) {
-	return p.Expr.ToValue(scope.Push(ScopeData(nil), ScopeOption{
+	return p.Expr.ToValue(scope.Push(nil, ScopeOption{
 		Default: true,
 	}))
 }

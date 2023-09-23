@@ -46,7 +46,44 @@ func TestEval(t *testing.T) {
 					data, err = json.MarshalIndent(nv, "", "  ")
 				}
 				require.NoError(t, err)
-				autogold.ExpectFile(t, string(data))
+				autogold.ExpectFile(t, autogold.Raw(data))
+			} else {
+				autogold.ExpectFile(t, err)
+			}
+		})
+	}
+}
+
+func TestSchemaRender(t *testing.T) {
+	dir := fmt.Sprintf("testdata/%s", t.Name())
+	files, err := os.ReadDir(dir)
+	require.Nil(t, err)
+
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".acorn") {
+			continue
+		}
+		t.Run(strings.TrimSuffix(file.Name(), ".acorn"), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(dir, file.Name()))
+			require.NoError(t, err)
+
+			ast, err := parser.ParseFile(file.Name(), bytes.NewReader(data))
+			require.NoError(t, err)
+
+			result, err := Build(ast)
+			require.NoError(t, err)
+
+			v, ok, err := result.ToValue(Builtin.Push(nil, ScopeOption{
+				Schema: true,
+			}))
+			require.NoError(t, err)
+			require.True(t, ok)
+
+			schema, err := value.DescribeObject(value.SchemaContext{}, v)
+			if err == nil {
+				data, err := json.MarshalIndent(schema, "", "  ")
+				require.NoError(t, err)
+				autogold.ExpectFile(t, autogold.Raw(data))
 			} else {
 				autogold.ExpectFile(t, err)
 			}

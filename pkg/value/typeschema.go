@@ -8,7 +8,16 @@ import (
 )
 
 type SchemaContext struct {
-	seen map[string]struct{}
+	seen  map[string]struct{}
+	index int
+}
+
+func (s *SchemaContext) SetIndex(i int) {
+	s.index = i
+}
+
+func (s *SchemaContext) GetIndex() int {
+	return s.index
 }
 
 func (s *SchemaContext) haveSeen(path string) bool {
@@ -38,6 +47,10 @@ func NewDefault(v Value) Value {
 }
 
 type Condition func(val Value) (Value, error)
+
+func (n *TypeSchema) String() string {
+	return fmt.Sprintf("(%s %s)", n.KindValue, SchemaKind)
+}
 
 func (n *TypeSchema) Kind() Kind {
 	return SchemaKind
@@ -103,7 +116,18 @@ func typeSchemaToFieldType(n *TypeSchema) (result schema.FieldType, _ bool, _ er
 	return result, true, nil
 }
 
+func (n *TypeSchema) DescribeFieldType(_ SchemaContext) (result schema.FieldType, _ error) {
+	fieldType, ok, err := typeSchemaToFieldType(n)
+	if err != nil {
+		return result, err
+	} else if !ok {
+		return result, fmt.Errorf("failed to yield value to determin field type on")
+	}
+	return fieldType, nil
+}
+
 func (n *TypeSchema) Fields(_ SchemaContext) ([]schema.Field, error) {
+	panic("hi")
 	var field schema.Field
 
 	fieldType, ok, err := typeSchemaToFieldType(n)
@@ -274,6 +298,10 @@ func checkType(schema *TypeSchema, right Value) (Value, error) {
 
 func (n *TypeSchema) Merge(right Value) (Value, error) {
 	if right.Kind() == SchemaKind {
+		// Special case arrays
+		if n.KindValue == ArrayKind && TargetKind(right) == ArrayKind {
+			return right, nil
+		}
 		return And(n, right)
 	}
 	return checkType(n, right)

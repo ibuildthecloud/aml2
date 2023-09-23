@@ -1,4 +1,4 @@
-`{
+{
   "data": "first",
   "next": {
     "data": "second",
@@ -6,4 +6,4 @@
       "data": "third"
     }
   }
-}`
+}

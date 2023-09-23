@@ -1,4 +1,4 @@
-module github.com/acorn-io/aml/cmd
+module github.com/acorn-io/aml/cli
 
 go 1.21.0
 

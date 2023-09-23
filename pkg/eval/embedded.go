@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"fmt"
+
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -15,7 +17,10 @@ type Embedded struct {
 	Expression Expression
 }
 
-func (e *Embedded) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
+func (e *Embedded) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
+	scope = scope.Push(nil, ScopeOption{
+		Path: fmt.Sprintf("embedded.%d", ctx.GetIndex()),
+	})
 	v, ok, err := e.ToValue(scope)
 	if err != nil {
 		return nil, err
@@ -23,7 +28,17 @@ func (e *Embedded) GetFields(ctx value.SchemaContext, scope Scope) ([]schema.Fie
 		return nil, nil
 	}
 
-	return getFields(ctx, v)
+	t := value.TargetKind(v)
+	if t != value.ObjectKind {
+		return nil, fmt.Errorf("embedded expressions in schemas must result in an object not %s", t)
+	}
+
+	obj, err := value.DescribeObject(ctx, v)
+	if err != nil {
+		return nil, err
+	}
+
+	return obj.Fields, nil
 }
 
 func (e *Embedded) IsPositionalArgument() bool {
@@ -51,5 +66,11 @@ func (e *Embedded) Keys(scope Scope) ([]string, error) {
 }
 
 func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {
-	return e.Expression.ToValue(scope)
+	v, ok, err := e.Expression.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
+	} else if t := value.TargetKind(v); scope.IsSchema() && t != value.ObjectKind && t != value.UndefinedKind {
+		return nil, false, fmt.Errorf("in schemas embedded expressions must evaluate to kind object, not %s", t)
+	}
+	return v, true, nil
 }
