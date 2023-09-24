@@ -222,6 +222,10 @@ func isDigit(ch rune) bool {
 
 func (s *Scanner) scanFieldIdentifier() string {
 	offs := s.offset
+	if s.ch == '$' {
+		s.next()
+		return string(s.src[offs:s.offset])
+	}
 	for isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
@@ -558,7 +562,7 @@ scanAgain:
 	case '0' <= ch && ch <= '9':
 		insertEOL = true
 		tok, lit = s.scanNumber(false)
-	case isLetter(ch):
+	case isLetter(ch), ch == '$':
 		lit = s.scanFieldIdentifier()
 		tok = token.Lookup(lit)
 		insertEOL = true

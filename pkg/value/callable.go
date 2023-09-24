@@ -1,6 +1,9 @@
 package value
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type CallArgument struct {
 	Positional bool
@@ -8,15 +11,15 @@ type CallArgument struct {
 }
 
 type Caller interface {
-	Call(args []CallArgument) (Value, bool, error)
+	Call(ctx context.Context, args []CallArgument) (Value, bool, error)
 }
 
-func Call(value Value, args ...CallArgument) (Value, bool, error) {
+func Call(ctx context.Context, value Value, args ...CallArgument) (Value, bool, error) {
 	if value.Kind() == UndefinedKind {
 		return value, true, nil
 	}
 	if caller, ok := value.(Caller); ok {
-		return caller.Call(args)
+		return caller.Call(ctx, args)
 	}
 	return nil, false, fmt.Errorf("kind %s is not callable", value.Kind())
 }

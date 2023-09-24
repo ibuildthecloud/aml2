@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,7 @@ type FunctionDefinition struct {
 	Pos        Position
 	Body       *Struct
 	ReturnBody bool
+	AssignRoot bool
 }
 
 func (f *FunctionDefinition) ToValue(scope Scope) (value.Value, bool, error) {
@@ -24,16 +26,18 @@ func (f *FunctionDefinition) ToValue(scope Scope) (value.Value, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	body := &Struct{
+		Fields: bodyFields,
+	}
 	return &Function{
-		Scope: scope,
-		Body: &Struct{
-			Fields: bodyFields,
-		},
+		Scope:          scope,
+		Body:           body,
 		ArgsSchema:     argsSchema,
 		ArgNames:       argNames,
 		ProfileNames:   profileNames,
 		ProfilesSchema: profileSchema,
 		ReturnBody:     f.ReturnBody,
+		AssignRoot:     f.AssignRoot,
 	}, true, nil
 }
 
@@ -82,6 +86,7 @@ type Function struct {
 	ProfilesSchema value.Value
 	ProfileNames   []string
 	ReturnBody     bool
+	AssignRoot     bool
 }
 
 func (c *Function) Kind() value.Kind {
@@ -166,15 +171,52 @@ func (c *Function) callArgumentToValue(args []value.CallArgument) (value.Value, 
 	return value.Merge(c.ArgsSchema, argValue)
 }
 
-func (c *Function) Call(args []value.CallArgument) (value.Value, bool, error) {
+type rootLookup struct {
+	f *Function
+}
+
+func (r rootLookup) ScopeLookup(scope Scope, key string) (value.Value, bool, error) {
+	if key == "$" {
+		return r.f.Body.ToValue(scope)
+	}
+	return nil, false, nil
+}
+
+type depthKey struct{}
+
+const MaxCallDepth = 100
+
+func (c *Function) Call(ctx context.Context, args []value.CallArgument) (value.Value, bool, error) {
 	argsValue, err := c.callArgumentToValue(args)
 	if err != nil {
 		return nil, false, err
 	}
 
-	ret, ok, err := c.Body.ToValue(c.Scope.Push(ScopeData(map[string]any{
+	depth, _ := ctx.Value(depthKey{}).(int)
+	if depth > MaxCallDepth {
+		return nil, false, fmt.Errorf("exceed max call depth %d > %d", depth, MaxCallDepth)
+	}
+	ctx = context.WithValue(ctx, depthKey{}, depth+1)
+
+	select {
+	case <-ctx.Done():
+		return nil, false, fmt.Errorf("context is closed: %w", ctx.Err())
+	default:
+	}
+
+	scope := c.Scope.Push(ScopeData(map[string]any{
 		"args": argsValue,
-	})))
+	}), ScopeOption{
+		Path:    "()",
+		Context: ctx,
+	})
+	if c.AssignRoot {
+		scope = scope.Push(rootLookup{
+			f: c,
+		})
+	}
+
+	ret, ok, err := c.Body.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}

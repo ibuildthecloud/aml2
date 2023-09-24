@@ -40,6 +40,7 @@ func (f *File) ToFunction(scope Scope) (value.Value, bool, error) {
 	def := &FunctionDefinition{
 		Body:       f.Body,
 		ReturnBody: true,
+		AssignRoot: true,
 	}
 	return def.ToValue(scope)
 }
@@ -50,7 +51,7 @@ func (f *File) ToValue(scope Scope) (value.Value, bool, error) {
 		return nil, ok, err
 	}
 
-	return value.Call(call, f.CallArgs()...)
+	return value.Call(scope.Context(), call, f.CallArgs()...)
 }
 
 func (f *File) CallArgs() (result []value.CallArgument) {

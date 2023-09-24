@@ -1,7 +1,9 @@
 package eval
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -11,6 +13,7 @@ type ScopeOption struct {
 	AllowNewKeys bool
 	Default      bool
 	Path         string
+	Context      context.Context
 }
 
 func combine(opts []ScopeOption) (result ScopeOption) {
@@ -28,11 +31,15 @@ func combine(opts []ScopeOption) (result ScopeOption) {
 		if opt.Path != "" {
 			result.Path = opt.Path
 		}
+		if opt.Context != nil {
+			result.Context = opt.Context
+		}
 	}
 	return
 }
 
 type Scope interface {
+	Context() context.Context
 	Path() string
 	Get(key string) (value.Value, bool, error)
 	Push(lookup ScopeLookuper, opts ...ScopeOption) Scope
@@ -68,6 +75,10 @@ func (e EmptyScope) Path() string {
 
 func (e EmptyScope) Get(key string) (value.Value, bool, error) {
 	return nil, false, nil
+}
+
+func (a EmptyScope) Context() context.Context {
+	return context.Background()
 }
 
 func (e EmptyScope) Push(lookup ScopeLookuper, opts ...ScopeOption) Scope {
@@ -109,6 +120,13 @@ func (n nested) IsSchema() bool {
 	return n.parent.IsSchema()
 }
 
+func (n nested) Context() context.Context {
+	if n.opts.Context != nil {
+		return n.opts.Context
+	}
+	return n.parent.Context()
+}
+
 func (n nested) Get(key string) (ret value.Value, ok bool, err error) {
 	v, ok, err := n.lookup.ScopeLookup(n, key)
 	if e := (*ErrPathNotFound)(nil); errors.As(err, &e) {
@@ -131,8 +149,12 @@ func scopePush(n Scope, lookup ScopeLookuper, opts ...ScopeOption) Scope {
 		lookup = ScopeData(nil)
 	}
 	o := combine(opts)
+	newPath := appendPath(n.Path(), o.Path)
+	if len(newPath) > 500 {
+		panic("stack depth too deep " + fmt.Sprint(len(newPath)))
+	}
 	return nested{
-		path:   appendPath(n.Path(), o.Path),
+		path:   newPath,
 		parent: n,
 		lookup: lookup,
 		opts:   o,

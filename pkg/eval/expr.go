@@ -229,7 +229,7 @@ func (c *Call) ToValue(scope Scope) (value.Value, bool, error) {
 		args = append(args, arg)
 	}
 
-	return value.Call(v, args...)
+	return value.Call(scope.Context(), v, args...)
 }
 
 type If struct {
