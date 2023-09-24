@@ -545,7 +545,7 @@ func (p *parser) parseLiteral() (lit *ast.BasicLit) {
 
 	p.tok.IsLiteral()
 	switch p.tok {
-	case token.NULL, token.TRUE, token.FALSE, token.INT, token.FLOAT, token.STRING:
+	case token.NULL, token.TRUE, token.FALSE, token.NUMBER, token.STRING:
 	default:
 		p.errf(p.pos, "expected literal but got %s", p.tok)
 	}
@@ -600,7 +600,7 @@ func (p *parser) parseOperand() (expr ast.Expr) {
 	case token.DEFAULT:
 		return p.parseDefault()
 
-	case token.NULL, token.TRUE, token.FALSE, token.INT, token.FLOAT, token.STRING:
+	case token.NULL, token.TRUE, token.FALSE, token.NUMBER, token.STRING:
 		return p.parseLiteral()
 
 	case token.INTERPOLATION:

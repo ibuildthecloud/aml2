@@ -243,7 +243,7 @@ func forClauseToFor(comp *ast.ForClause, expr Expression, merge bool) (*For, err
 
 func basicListToValue(lit *ast.BasicLit) (Expression, error) {
 	switch lit.Kind {
-	case token.INT, token.FLOAT:
+	case token.NUMBER:
 		return Value{
 			Value: value.Number(lit.Value),
 		}, nil

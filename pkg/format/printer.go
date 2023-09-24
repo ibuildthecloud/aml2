@@ -17,7 +17,6 @@ package format
 import (
 	"fmt"
 	"os"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/acorn-io/aml/pkg/ast"
@@ -125,37 +124,6 @@ func (p *printer) Print(v interface{}) {
 			//    in the AST.
 			if p.indent < 6 {
 				data = literal.IndentTabs(data, p.cfg.Indent+p.indent+1)
-			}
-
-		case token.INT:
-			if len(data) > 1 &&
-				data[0] == '0' &&
-				data[1] >= '0' && data[1] <= '9' {
-				data = "0o" + data[1:]
-			}
-			// Pad trailing dot before multiplier.
-			if p := strings.IndexByte(data, '.'); p >= 0 && data[p+1] > '9' {
-				data = data[:p+1] + "0" + data[p+1:]
-			}
-			// Lowercase E, but only if it is not the last character: in the
-			// future we may use E for Exa.
-			if p := strings.IndexByte(data, 'E'); p != -1 && p < len(data)-1 {
-				data = strings.ToLower(data)
-			}
-
-		case token.FLOAT:
-			// Pad leading or trailing dots.
-			switch p := strings.IndexByte(data, '.'); {
-			case p < 0:
-			case p == 0:
-				data = "0" + data
-			case p == len(data)-1:
-				data += "0"
-			case data[p+1] > '9':
-				data = data[:p+1] + "0" + data[p+1:]
-			}
-			if strings.IndexByte(data, 'E') != -1 {
-				data = strings.ToLower(data)
 			}
 		}
 
@@ -407,7 +375,7 @@ func mayCombine(prev, next token.Token) (before, after bool) {
 		return true, true
 	}
 	switch prev {
-	case token.INT:
+	case token.NUMBER:
 		before = next == token.PERIOD // 1.
 	}
 	return before, false

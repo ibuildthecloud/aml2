@@ -34,8 +34,7 @@ const (
 	// Identifiers and basic type literals
 	// (these tokens stand for classes of literals)
 	IDENT         // main, _tmp
-	INT           // 12_345Mi, 0700, 0xdeadbeef, 1.2M
-	FLOAT         // 123.45,
+	NUMBER        // any numner int or float
 	STRING        // "abc"
 	INTERPOLATION // a part of a template string, e.g. `"age: \(`
 
@@ -101,8 +100,7 @@ var tokens = [...]string{
 	COMMENT: "COMMENT",
 
 	IDENT:         "IDENT",
-	INT:           "INT",
-	FLOAT:         "FLOAT",
+	NUMBER:        "NUMBER",
 	STRING:        "STRING",
 	INTERPOLATION: "INTERPOLATION",
 

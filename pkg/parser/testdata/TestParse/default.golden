@@ -43,7 +43,7 @@
 					},
 					offset: 195,
 				},
-				Kind:  token.Token(INT),
+				Kind:  token.Token(NUMBER),
 				Value: "1",
 			},
 		},

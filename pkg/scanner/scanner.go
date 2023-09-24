@@ -271,11 +271,10 @@ func (s *Scanner) scanMantissa(base int) {
 func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 	// digitVal(s.ch) < 10
 	offs := s.offset
-	tok := token.INT
+	tok := token.NUMBER
 
 	if seenDecimalPoint {
 		offs--
-		tok = token.FLOAT
 		s.scanMantissa(10)
 		goto exponent
 	}
@@ -284,44 +283,18 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 		// int or float
 		offs := s.offset
 		s.next()
-		if s.ch == 'x' || s.ch == 'X' {
-			// hexadecimal int
-			s.next()
-			s.scanMantissa(16)
-			if s.offset-offs <= 2 {
-				// only scanned "0x" or "0X"
-				s.errf(offs, "illegal hexadecimal number")
-			}
-		} else if s.ch == 'b' {
-			// binary int
-			s.next()
-			s.scanMantissa(2)
-			if s.offset-offs <= 2 {
-				// only scanned "0b"
-				s.errf(offs, "illegal binary number")
-			}
-		} else if s.ch == 'o' {
-			// octal int
-			s.next()
-			s.scanMantissa(8)
-			if s.offset-offs <= 2 {
-				// only scanned "0o"
-				s.errf(offs, "illegal octal number")
-			}
-		} else {
-			// 0 or float
-			seenDigits := false
-			if s.ch >= '0' && s.ch <= '9' {
-				seenDigits = true
-				s.scanMantissa(10)
-			}
-			if s.ch == '.' || s.ch == 'e' || s.ch == 'E' {
-				goto fraction
-			}
-			if seenDigits {
-				// integer other than 0 may not start with 0
-				s.errf(offs, "illegal integer number")
-			}
+		// 0 or float
+		seenDigits := false
+		if s.ch >= '0' && s.ch <= '9' {
+			seenDigits = true
+			s.scanMantissa(10)
+		}
+		if s.ch == '.' || s.ch == 'e' || s.ch == 'E' {
+			goto fraction
+		}
+		if seenDigits {
+			// integer other than 0 may not start with 0
+			s.errf(offs, "illegal integer number")
 		}
 		goto exit
 	}
@@ -329,26 +302,19 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 	// decimal int or float
 	s.scanMantissa(10)
 
-	// TODO: allow 3h4s, etc.
-	// switch s.ch {
-	// case 'h', 'm', 's', "µ"[0], 'u', 'n':
-	// }
-
 fraction:
 	if s.ch == '.' {
 		if p := s.offset + 1; p < len(s.src) && s.src[p] == '.' {
 			// interpret dot as part of a range.
 			goto exit
 		}
-		tok = token.FLOAT
 		s.next()
 		s.scanMantissa(10)
 	}
 
 exponent:
 	switch s.ch {
-	case 'K', 'M', 'G', 'T', 'P':
-		tok = token.INT // TODO: Or should we allow this to be a float?
+	case 'K', 'k', 'M', 'm', 'G', 'g', 'T', 't', 'P', 'p':
 		s.next()
 		if s.ch == 'i' {
 			s.next()
@@ -357,7 +323,6 @@ exponent:
 	}
 
 	if s.ch == 'e' || s.ch == 'E' {
-		tok = token.FLOAT
 		s.next()
 		if s.ch == '-' || s.ch == '+' {
 			s.next()

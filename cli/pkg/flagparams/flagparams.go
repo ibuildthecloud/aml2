@@ -13,8 +13,7 @@ import (
 
 type Flags struct {
 	FlagSet       *pflag.FlagSet
-	paramToFlag   map[string]string
-	ints          map[string]*int
+	numbers       map[string]*int
 	strings       map[string]*string
 	bools         map[string]*bool
 	complexValues map[string]*string
@@ -135,22 +134,7 @@ func (f *Flags) Parse(args []string) (map[string]any, error) {
 
 	return result, nil
 }
-func (f *Flags) flagChanged(name string) bool {
-	if fName, ok := f.paramToFlag[name]; ok {
-		return f.FlagSet.Lookup(fName).Changed
-	}
-	return false
-}
 
-func isType(schema, typeName string) bool {
-	schema = strings.TrimSpace(schema)
-	if schema == typeName || strings.HasSuffix(schema, "| "+typeName) {
-		return true
-	}
-	for _, w := range strings.Split(schema, " ") {
-		if w == typeName {
-			return true
-		}
-	}
-	return false
+func (f *Flags) flagChanged(name string) bool {
+	return f.FlagSet.Lookup(name).Changed
 }
