@@ -204,10 +204,15 @@ func (c *Function) Call(ctx context.Context, args []value.CallArgument) (value.V
 	default:
 	}
 
+	var path string
+	if c.Scope.Path() != "" {
+		path = "()"
+	}
+
 	scope := c.Scope.Push(ScopeData(map[string]any{
 		"args": argsValue,
 	}), ScopeOption{
-		Path:    "()",
+		Path:    path,
 		Context: ctx,
 	})
 	if c.AssignRoot {
