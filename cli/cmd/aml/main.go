@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	cmd.Main(cmd.Command(&cmds.AML{}))
+	cmd.Main(cmds.NewRootCommand())
 }

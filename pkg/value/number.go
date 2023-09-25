@@ -3,10 +3,35 @@ package value
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
+	"strings"
 )
 
 type Number string
+
+var multipliers map[string]float64
+
+func init() {
+	multipliers = map[string]float64{}
+	for i, v := range []string{"k", "m", "g", "t", "p"} {
+		// 10^3, 10^6, 10^9, etc
+		decimal := math.Pow10((i + 1) * 3)
+		// 2^(10*1), 2^(10*2), 2^(10*3), etc
+		binary := math.Pow(2, float64((i+1)*10))
+
+		// k, m, g, t, p
+		multipliers[v] = decimal
+		// ki, mi, gi, ti, pi
+		multipliers[v+"i"] = binary
+
+		v = strings.ToUpper(v)
+		// K, M, G, T, P
+		multipliers[v] = decimal
+		// Ki, Mi, Gi, Ti, Pi
+		multipliers[v+"i"] = binary
+	}
+}
 
 func (n Number) Kind() Kind {
 	return NumberKind
@@ -168,14 +193,44 @@ func (n Number) Neq(right Value) (Value, error) {
 	})
 }
 
+func extraMultiplierAndNormalize(n string) (string, float64) {
+	for suffix, multiplier := range multipliers {
+		if strings.HasSuffix(n, suffix) {
+			return strings.ReplaceAll(strings.TrimSuffix(n, suffix), "_", ""), multiplier
+		}
+	}
+	return strings.ReplaceAll(n, "_", ""), 1
+}
+
 func (n Number) ToInt() (int64, error) {
-	return strconv.ParseInt(string(n), 10, 64)
+	str, m := extraMultiplierAndNormalize(string(n))
+	ret, err := strconv.ParseInt(str, 10, 64)
+	return ret * int64(m), err
 }
 
 func (n Number) ToFloat() (float64, error) {
-	return strconv.ParseFloat(string(n), 64)
+	str, m := extraMultiplierAndNormalize(string(n))
+	ret, err := strconv.ParseFloat(str, 64)
+	return ret * m, err
 }
 
 func (n Number) MarshalJSON() ([]byte, error) {
-	return json.Marshal(json.Number(n))
+	str, m := extraMultiplierAndNormalize(string(n))
+	// avoid converting to a number if we can so that we might not accidentally lose precision or something
+	if len(n) == len(str) {
+		return []byte(n), nil
+	} else if m == 1 {
+		return json.Marshal(json.Number(str))
+	}
+
+	i, err := n.ToInt()
+	if err == nil {
+		return json.Marshal(i)
+	}
+
+	f, err := n.ToFloat()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(f)
 }

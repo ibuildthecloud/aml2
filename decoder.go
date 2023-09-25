@@ -2,6 +2,7 @@ package aml
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,11 +19,15 @@ type Option struct {
 	Args           map[string]any
 	Profiles       []string
 	SourceName     string
+	Context        context.Context
 }
 
 func (o Option) Complete() Option {
 	if o.SourceName == "" {
 		o.SourceName = "<inline>"
+	}
+	if o.Context == nil {
+		o.Context = context.Background()
 	}
 	return o
 }
@@ -35,6 +40,9 @@ func (o Options) Merge() (result Option) {
 		result.Profiles = append(result.Profiles, opt.Profiles...)
 		if opt.SourceName != "" {
 			result.SourceName = opt.SourceName
+		}
+		if opt.Context != nil {
+			result.Context = opt.Context
 		}
 		if len(opt.Args) > 0 && result.Args == nil {
 			result.Args = map[string]any{}
@@ -84,7 +92,7 @@ func (d *Decoder) Decode(out any) error {
 
 	switch n := out.(type) {
 	case *schema.File:
-		fileSchema, err := file.ToSchema()
+		fileSchema, err := file.DescribeFile()
 		if err != nil {
 			return err
 		}
@@ -92,7 +100,7 @@ func (d *Decoder) Decode(out any) error {
 		return nil
 	}
 
-	val, ok, err := file.ToValue(eval.Builtin)
+	val, ok, err := eval.Eval(d.opts.Context, file)
 	if err != nil {
 		return err
 	} else if !ok {

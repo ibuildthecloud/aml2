@@ -14,7 +14,7 @@ type File struct {
 	Body           *Struct
 }
 
-func (f *File) ToSchema() (*schema.File, error) {
+func (f *File) DescribeFile() (*schema.File, error) {
 	fun, ok, err := f.ToFunction(Builtin)
 	if err != nil {
 		return nil, err
@@ -31,8 +31,8 @@ func (f *File) ToSchema() (*schema.File, error) {
 	}
 
 	return &schema.File{
-		Args:     *argsSchema,
-		Profiles: profiles,
+		Args:         *argsSchema,
+		ProfileNames: profiles.Describe(),
 	}, nil
 }
 

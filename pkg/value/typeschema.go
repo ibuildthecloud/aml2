@@ -84,7 +84,7 @@ func checkerToConstraint(checker Checker) (result schema.Constraint, _ bool, _ e
 }
 
 func typeSchemaToFieldType(n *TypeSchema) (result schema.FieldType, _ bool, _ error) {
-	result.Kind = string(n.KindValue)
+	result.Kind = schema.Kind(n.KindValue)
 
 	if n.DefaultValue != nil {
 		def, ok, err := NativeValue(n.DefaultValue)

@@ -1,8 +1,15 @@
 package schema
 
 type File struct {
-	Args     Object
-	Profiles []string
+	Args         Object
+	ProfileNames Names
+}
+
+type Names []Name
+
+type Name struct {
+	Value       string
+	Description string
 }
 
 type Schema interface {
@@ -53,7 +60,7 @@ func (f *Field) GetFields() []Field {
 }
 
 type FieldType struct {
-	Kind       string       `json:"kind,omitempty"`
+	Kind       Kind         `json:"kind,omitempty"`
 	Object     *Object      `json:"object,omitempty"`
 	Array      *Array       `json:"array,omitempty"`
 	Constraint []Constraint `json:"constraint,omitempty"`

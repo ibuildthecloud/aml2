@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
@@ -41,7 +42,7 @@ func (f *FunctionDefinition) ToValue(scope Scope) (value.Value, bool, error) {
 	}, true, nil
 }
 
-func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName string, allowNewFields bool) ([]string, value.Value, error) {
+func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName string, allowNewFields bool) (Names, value.Value, error) {
 	s := Schema{
 		AllowNewFields: allowNewFields,
 		Struct: &Struct{
@@ -58,8 +59,29 @@ func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName st
 		return nil, v, err
 	}
 
+	obj, err := value.DescribeObject(value.SchemaContext{}, args)
+	if err != nil {
+		// for various reasons during partial evaluation this call could fail, in that situation
+		// we don't care because we are just looking for the descriptions
+		obj = &schema.Object{}
+	}
+
+	var names Names
 	keys, err := value.Keys(args)
-	return keys, args, err
+	for _, key := range keys {
+		name := Name{
+			Value: key,
+		}
+		for _, field := range obj.Fields {
+			if field.Name == key {
+				name.Description = field.Description
+				break
+			}
+		}
+		names = append(names, name)
+	}
+
+	return names, args, err
 }
 
 func (f *FunctionDefinition) splitFields() (argFields []Field, bodyFields []Field) {
@@ -82,11 +104,25 @@ type Function struct {
 	Scope          Scope
 	Body           Expression
 	ArgsSchema     value.Value
-	ArgNames       []string
+	ArgNames       Names
 	ProfilesSchema value.Value
-	ProfileNames   []string
+	ProfileNames   Names
 	ReturnBody     bool
 	AssignRoot     bool
+}
+
+type Names []Name
+
+type Name struct {
+	Value       string
+	Description string
+}
+
+func (n Names) Describe() (result schema.Names) {
+	for _, name := range n {
+		result = append(result, schema.Name(name))
+	}
+	return
 }
 
 func (c *Function) Kind() value.Kind {
@@ -139,7 +175,7 @@ func (c *Function) callArgumentToValue(args []value.CallArgument) (value.Value, 
 				return nil, fmt.Errorf("invalid arg index %d, args len %d", i, len(c.ArgNames))
 			}
 			argValues = append(argValues, value.NewObject(map[string]any{
-				c.ArgNames[i]: arg.Value,
+				c.ArgNames[i].Value: arg.Value,
 			}))
 		} else if arg.Value.Kind() != value.ObjectKind {
 			return nil, fmt.Errorf("invalid argument kind %s (index %d)", arg.Value.Kind(), i)

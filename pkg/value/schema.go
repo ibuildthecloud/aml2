@@ -18,7 +18,7 @@ func DescribeFieldType(ctx SchemaContext, v Value) (result schema.FieldType, _ e
 			return result, err
 		}
 		return schema.FieldType{
-			Kind:   string(ObjectKind),
+			Kind:   schema.ObjectKind,
 			Object: objSchema,
 		}, nil
 	case ArrayKind:
@@ -27,7 +27,7 @@ func DescribeFieldType(ctx SchemaContext, v Value) (result schema.FieldType, _ e
 			return result, err
 		}
 		return schema.FieldType{
-			Kind:  string(ArrayKind),
+			Kind:  schema.ArrayKind,
 			Array: arraySchema,
 		}, nil
 	}
