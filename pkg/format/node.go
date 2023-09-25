@@ -143,27 +143,11 @@ func (f *formatter) walkDeclList(list []ast.Decl) {
 	f.after(nil)
 }
 
-func (f *formatter) walkClauseList(list ast.Clause, ws whiteSpace) {
-	f.before(nil)
-	//for _, x := range list {
-	//	f.before(x)
-	//	f.print(ws)
-	//	f.clause(x)
-	//	f.after(x)
-	//}
-	f.after(nil)
-}
-
 func (f *formatter) walkListElems(list []ast.Expr) {
 	f.before(nil)
 	for _, x := range list {
 		f.before(x)
 		switch n := x.(type) {
-		case *ast.ListComprehension:
-			f.walkClauseList(n.Clause, blank)
-			f.print(blank, nooverride)
-			f.expr(n.Value)
-
 		case ast.Expr:
 			f.exprRaw(n, token.LowestPrec, 1)
 		}
@@ -289,7 +273,7 @@ func (f *formatter) decl(decl ast.Decl) {
 		}
 		f.print(n.Let, token.LET, blank, nooverride)
 		f.expr(n.Ident)
-		f.print(blank, nooverride, n.Colon, token.COLON, blank)
+		f.print(noblank, nooverride, n.Colon, token.COLON, blank)
 		f.expr(n.Expr)
 		f.print(declcomma) // implied
 
@@ -466,12 +450,13 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		}
 
 	case *ast.Func:
-		f.print(x.Func, token.FUNCTION, blank)
+		f.print(x.Func, token.FUNCTION, blank, nooverride)
 		f.exprRaw(x.Body, token.LowestPrec, depth)
 
 	case *ast.SchemaLit:
 		f.print(x.Schema, token.SCHEMA, blank)
 		f.exprRaw(x.Struct, token.LowestPrec, depth)
+
 	case *ast.StructLit:
 		var l line
 		ws := noblank
@@ -543,7 +528,6 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		f.print(x.Lbrack, token.LBRACK, indent)
 		f.print(x.For, "for", blank)
 		f.clause(x.Clause)
-		f.walkClauseList(x.Clause, blank)
 		f.print(blank, nooverride)
 		f.expr(x.Value)
 		f.print(noblank, x.Rbrack, token.RBRACK)
@@ -569,7 +553,6 @@ func (f *formatter) clause(clause ast.Clause) {
 		f.markUnindentLine()
 
 	case *ast.IfClause:
-		//f.print(n.If, "if", blank)
 		f.print(indent)
 		f.expr(n.Condition)
 		f.markUnindentLine()
@@ -578,7 +561,7 @@ func (f *formatter) clause(clause ast.Clause) {
 		f.print(n.Let, token.LET, blank, nooverride)
 		f.print(indent)
 		f.expr(n.Ident)
-		f.print(blank, nooverride, n.Colon, token.COLON, blank)
+		f.print(noblank, nooverride, n.Colon, token.COLON, blank)
 		f.expr(n.Expr)
 		f.markUnindentLine()
 
