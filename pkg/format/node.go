@@ -379,6 +379,10 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 	case *ast.Ident:
 		f.print(x.NamePos, x)
 
+	case *ast.DefaultExpr:
+		f.print(x.Default, token.DEFAULT, blank)
+		f.exprRaw(x.X, token.LowestPrec, depth)
+
 	case *ast.BinaryExpr:
 		if depth < 1 {
 			f.internalError("depth < 1:", depth)
@@ -554,7 +558,7 @@ func (f *formatter) clause(clause ast.Clause) {
 	case *ast.ForClause:
 		if n.Key != nil {
 			f.label(n.Key, token.ILLEGAL)
-			//f.print(n.Colon, token.COMMA, blank)
+			f.print(n.Comma, token.COMMA, blank)
 		} else {
 			f.current.pos++
 			f.visitComments(f.current.pos)

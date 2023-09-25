@@ -2,6 +2,7 @@ package cmds
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 
@@ -22,24 +23,28 @@ func NewFmt(aml *AML) *cobra.Command {
 }
 
 func (e *Fmt) Run(cmd *cobra.Command, args []string) error {
+	var errs []error
 	for _, arg := range args {
 		data, err := os.ReadFile(arg)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", arg, err)
+			errs = append(errs, fmt.Errorf("reading %s: %w", arg, err))
+			continue
 		}
 
 		newData, err := aml.Format(data)
 		if err != nil {
-			return fmt.Errorf("formatting %s: %w", arg, err)
+			errs = append(errs, fmt.Errorf("formatting %s: %w", arg, err))
+			continue
 		}
 
 		if !bytes.Equal(data, newData) {
 			err := os.WriteFile(arg, newData, 0644)
 			if err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("writing file %s: %w", args, err))
 			}
+			continue
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
