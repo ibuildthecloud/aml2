@@ -49,7 +49,10 @@ func New(argsFile, filename string, profiles schema.Names, args schema.Object) *
 		profile    *[]string
 	)
 
-	if len(profiles) > 0 {
+	if len(profiles) == 0 {
+		var empty []string
+		profile = &empty
+	} else {
 		desc := strings.Builder{}
 		desc.WriteString("Available profiles (")
 		startLen := desc.Len()
