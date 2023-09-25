@@ -79,6 +79,10 @@ func TestSchemaUnmarshal(t *testing.T) {
 				},
 			},
 		},
-		Profiles: []string{"baz"},
+		ProfileNames: schema.Names{
+			{
+				Value: "baz",
+			},
+		},
 	}).Equal(t, out)
 }
