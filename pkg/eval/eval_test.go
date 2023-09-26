@@ -44,9 +44,11 @@ func TestEval(t *testing.T) {
 				if err == nil {
 					require.True(t, ok)
 					data, err = json.MarshalIndent(nv, "", "  ")
+					require.NoError(t, err)
+					autogold.ExpectFile(t, autogold.Raw(data))
+				} else {
+					autogold.ExpectFile(t, autogold.Raw(err.Error()))
 				}
-				require.NoError(t, err)
-				autogold.ExpectFile(t, autogold.Raw(data))
 			} else {
 				autogold.ExpectFile(t, err.Error())
 			}

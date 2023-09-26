@@ -1,3 +1,1 @@
-&errors.joinError{errs: []error{
-	&errors.errorString{s: "expected kind number but got string"},
-}}
+"schema violation Schema.foo: expected kind number but got string"

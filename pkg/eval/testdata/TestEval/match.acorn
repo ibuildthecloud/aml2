@@ -10,7 +10,7 @@ let x: 1
 	Test
 	{
 		blah: 5
-		f: "hi"
+		f: 11
 		a: 3
 		y: x
 		missing: "nope it's here"

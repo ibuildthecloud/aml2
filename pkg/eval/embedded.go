@@ -17,6 +17,8 @@ type Embedded struct {
 	Pos        Position
 	Comments   Comments
 	Expression Expression
+
+	disallowedKeys []string
 }
 
 func (e *Embedded) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
@@ -50,6 +52,7 @@ func (e *Embedded) ToValueForKey(scope Scope, key string) (value.Value, bool, er
 		return nil, ok, err
 	}
 	if v.Kind() == value.UndefinedKind {
+		e.disallowedKeys = append(e.disallowedKeys, key)
 		return nil, false, errors.NewEvalError(value.Position(e.Pos), &ErrKeyUndefined{
 			Key:       key,
 			Undefined: v,
@@ -97,12 +100,50 @@ func (e *Embedded) ToValueForMatch(scope Scope, key string) (value.Value, bool, 
 	return nil, false, nil
 }
 
+func (e *Embedded) checkKeys(v value.Value) error {
+	if len(e.disallowedKeys) == 0 {
+		return nil
+	}
+
+	keys, err := value.Keys(v)
+	if err != nil {
+		// Ignore errors looking up keys. Either keys are supported or there is something wrong with
+		// this value in which it's already invalid
+		return nil
+	}
+
+	for _, check := range e.disallowedKeys {
+		for _, key := range keys {
+			if check == key {
+				return errors.NewEvalError(value.Position(e.Pos),
+					fmt.Errorf("invalid cycle detected in key %s", key))
+			}
+		}
+	}
+
+	return nil
+}
+
 func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {
 	v, ok, err := e.Expression.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	} else if t := value.TargetKind(v); scope.IsSchema() && t != value.ObjectKind && t != value.UndefinedKind {
-		return nil, false, fmt.Errorf("in schemas embedded expressions must evaluate to kind object, not %s", t)
+		return nil, false, errors.NewEvalError(value.Position(e.Pos),
+			fmt.Errorf("in schemas embedded expressions must evaluate to kind object, not %s", t))
 	}
-	return v, true, nil
+	if len(e.disallowedKeys) > 0 {
+		keys, err := value.Keys(v)
+		if err == nil {
+			for _, check := range e.disallowedKeys {
+				for _, key := range keys {
+					if check == key {
+						return nil, false, errors.NewEvalError(value.Position(e.Pos),
+							fmt.Errorf("invalid cycle detected in key %s", key))
+					}
+				}
+			}
+		}
+	}
+	return v, true, e.checkKeys(v)
 }

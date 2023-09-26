@@ -1,6 +1,2 @@
-&errors.joinError{errs: []error{
-	&errors.errorString{s: "unmatched constraint bye =~ hi.*"},
-	&errors.joinError{errs: []error{
-		&errors.errorString{s: "unmatched constraint bye =~ hi.*"},
-	}},
-}}
+`schema violation .a: unmatched constraint bye =~ hi.*
+unmatched constraint bye =~ hi.*`

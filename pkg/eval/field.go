@@ -140,12 +140,10 @@ func (k *KeyValue) ToValue(scope Scope) (value.Value, bool, error) {
 		err error
 	)
 
-	keyValue, ok, err := k.Key.Key.ToValue(scope)
-	if err != nil || !ok || keyValue.Kind() == value.UndefinedKind {
-		return keyValue, ok, err
+	key, ok, err := k.Key.ToString(scope)
+	if err != nil || !ok {
+		return nil, ok, err
 	}
-
-	key, err := value.ToString(keyValue)
 
 	v, ok, err = k.getValueValue(scope, key)
 	if err != nil || !ok {
@@ -177,10 +175,22 @@ type FieldKey struct {
 	Match Expression
 	Key   Expression
 	Pos   Position
+
+	disallowedKeys []string
 }
 
 func (k *FieldKey) IsMatch() bool {
 	return k.Match != nil
+}
+
+func (k *FieldKey) checkKey(key string) error {
+	for _, check := range k.disallowedKeys {
+		if key == check {
+			return errors.NewEvalError(value.Position(k.Pos),
+				fmt.Errorf("invalid cycle detected in key %s", key))
+		}
+	}
+	return nil
 }
 
 func (k *FieldKey) ToString(scope Scope) (string, bool, error) {
@@ -196,7 +206,10 @@ func (k *FieldKey) ToString(scope Scope) (string, bool, error) {
 	}
 
 	s, err := value.ToString(v)
-	return s, true, err
+	if err != nil {
+		return "", false, err
+	}
+	return s, true, k.checkKey(s)
 }
 
 type ErrKeyUndefined struct {
@@ -217,6 +230,7 @@ func (k *FieldKey) Equals(scope Scope, key string) (_ bool, returnErr error) {
 	if err != nil || !ok {
 		return false, err
 	} else if v.Kind() == value.UndefinedKind {
+		k.disallowedKeys = append(k.disallowedKeys, key)
 		return false, errors.NewEvalError(value.Position(k.Pos), &ErrKeyUndefined{
 			Key:       key,
 			Undefined: v,

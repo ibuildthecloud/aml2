@@ -1,4 +1,2 @@
-&errors.joinError{errs: []error{
-	&errors.errorString{s: `expected kind object, got array (value: ["hi"])`},
-	&errors.errorString{s: "in schemas embedded expressions must evaluate to kind object, not array"},
-}}
+`schema violation .a: expected kind object, got array (value: ["hi"])
+key not found "number": key not found "string": in schemas embedded expressions must evaluate to kind object, not array: schema-array-embed.acorn:3:9: schema-array-embed.acorn:3:18: schema-array-embed.acorn:3:10`

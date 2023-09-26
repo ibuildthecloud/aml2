@@ -1,1 +1,1 @@
-&errors.errorString{s: "can not override field number 1 with undefined circular.acorn:2:4"}
+undefined value from circular.acorn:2:4 can not be turned into a native go value
