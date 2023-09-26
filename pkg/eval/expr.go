@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/acorn-io/aml/pkg/errors"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
@@ -80,24 +81,19 @@ func (l *Lookup) ToValue(scope Scope) (value.Value, bool, error) {
 
 	v, ok, err := scope.Get(l.Key)
 	if err != nil {
-		return nil, false, err
+		return nil, false, newNotFound(l.Pos, l.Key, err)
 	}
 	if !ok {
-		return nil, false, &ErrPathNotFound{
-			Key: value.NewValue(l.Key),
-			Pos: l.Pos,
-		}
+		return nil, false, newNotFound(l.Pos, l.Key, nil)
 	}
 	return v, true, nil
 }
 
-type ErrPathNotFound struct {
-	Key value.Value
-	Pos Position
-}
-
-func (c *ErrPathNotFound) Error() string {
-	return fmt.Sprintf("path not found: %s %s", c.Key, c.Pos)
+func newNotFound(pos Position, key any, err error) error {
+	if err != nil {
+		return errors.NewEvalError(value.Position(pos), fmt.Errorf("key not found \"%s\": %w", key, err))
+	}
+	return errors.NewEvalError(value.Position(pos), fmt.Errorf("key not found \"%s\"", key))
 }
 
 type Selector struct {
@@ -107,7 +103,11 @@ type Selector struct {
 	Key      Expression
 }
 
-func (s *Selector) ToValue(scope Scope) (value.Value, bool, error) {
+func (s *Selector) ToValue(scope Scope) (_ value.Value, _ bool, retErr error) {
+	defer func() {
+		retErr = errors.NewEvalError(value.Position(s.Pos), retErr)
+	}()
+
 	key, ok, err := s.Key.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
@@ -123,13 +123,10 @@ func (s *Selector) ToValue(scope Scope) (value.Value, bool, error) {
 
 	newValue, ok, err := value.Lookup(v, key)
 	if err != nil {
-		return nil, false, err
+		return nil, false, newNotFound(s.Pos, key, err)
 	}
 	if !ok {
-		return nil, false, &ErrPathNotFound{
-			Key: key,
-			Pos: s.Pos,
-		}
+		return nil, false, newNotFound(s.Pos, key, nil)
 	}
 
 	return newValue, true, nil
@@ -229,7 +226,11 @@ func (c *Call) ToValue(scope Scope) (value.Value, bool, error) {
 		args = append(args, arg)
 	}
 
-	return value.Call(scope.Context(), v, args...)
+	v, ok, err = value.Call(scope.Context(), v, args...)
+	if err != nil {
+		return v, ok, errors.NewEvalError(value.Position(c.Pos), err)
+	}
+	return v, ok, err
 }
 
 type If struct {
@@ -246,7 +247,7 @@ func (i *If) ToValue(scope Scope) (value.Value, bool, error) {
 	}
 
 	if v.Kind() == value.UndefinedKind {
-		return v, false, err
+		return v, true, nil
 	}
 
 	b, err := value.ToBool(v)
@@ -305,6 +306,9 @@ type For struct {
 	Collection Expression
 	Body       Expression
 	Merge      bool
+	Position   Position
+
+	evaluating bool
 }
 
 type entry struct {
@@ -354,6 +358,14 @@ func toList(v value.Value) (result []entry, _ error) {
 }
 
 func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
+	//if f.evaluating {
+	//	return value.Undefined{
+	//		Pos: value.Position(f.Position),
+	//	}, true, nil
+	//}
+	//f.evaluating = true
+	//defer func() { f.evaluating = false }()
+
 	collection, ok, err := f.Collection.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
@@ -367,6 +379,13 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 	array := value.Array{}
 
 	for _, item := range list {
+		select {
+		case <-scope.Context().Done():
+			return nil, false, errors.NewEvalError(value.Position(f.Position),
+				fmt.Errorf("aborting loop: %w", scope.Context().Err()))
+		default:
+		}
+
 		data := map[string]any{}
 		if f.Key != "" {
 			data[f.Key] = item.Key

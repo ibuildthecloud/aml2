@@ -83,6 +83,9 @@ func (d *Decoder) Decode(out any) error {
 		Args:           d.opts.Args,
 		Profiles:       d.opts.Profiles,
 	})
+	if err != nil {
+		return err
+	}
 
 	switch n := out.(type) {
 	case *eval.File:
@@ -100,7 +103,7 @@ func (d *Decoder) Decode(out any) error {
 		return nil
 	}
 
-	val, ok, err := eval.Eval(d.opts.Context, file)
+	val, ok, err := eval.EvalExpr(d.opts.Context, file)
 	if err != nil {
 		return err
 	} else if !ok {

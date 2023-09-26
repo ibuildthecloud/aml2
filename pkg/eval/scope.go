@@ -2,7 +2,6 @@ package eval
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/acorn-io/aml/pkg/value"
@@ -94,10 +93,11 @@ func (e EmptyScope) AllowNewKeys() bool {
 }
 
 type nested struct {
-	path   string
-	parent Scope
-	lookup ScopeLookuper
-	opts   ScopeOption
+	path     string
+	parent   Scope
+	lookup   ScopeLookuper
+	opts     ScopeOption
+	keyCache map[string]value.Value
 }
 
 func (n nested) AllowNewKeys() bool {
@@ -128,16 +128,25 @@ func (n nested) Context() context.Context {
 }
 
 func (n nested) Get(key string) (ret value.Value, ok bool, err error) {
-	v, ok, err := n.lookup.ScopeLookup(n, key)
-	if e := (*ErrPathNotFound)(nil); errors.As(err, &e) {
-		ok = false
-	} else if err != nil {
-		return nil, false, err
+	if v, ok := n.keyCache[key]; ok {
+		return v, true, nil
 	}
-	if ok {
+
+	v, ok, err := n.lookup.ScopeLookup(n, key)
+	if err != nil {
+		return nil, false, err
+	} else if ok {
+		if value.IsDefined(v) {
+			n.keyCache[key] = v
+		}
 		return v, ok, nil
 	}
-	return n.parent.Get(key)
+
+	v, ok, err = n.parent.Get(key)
+	if err == nil && ok && value.IsDefined(v) {
+		n.keyCache[key] = v
+	}
+	return v, ok, err
 }
 
 func (n nested) Path() string {
@@ -154,10 +163,11 @@ func scopePush(n Scope, lookup ScopeLookuper, opts ...ScopeOption) Scope {
 		panic("stack depth too deep " + fmt.Sprint(len(newPath)))
 	}
 	return nested{
-		path:   newPath,
-		parent: n,
-		lookup: lookup,
-		opts:   o,
+		path:     newPath,
+		parent:   n,
+		lookup:   lookup,
+		opts:     o,
+		keyCache: make(map[string]value.Value),
 	}
 }
 

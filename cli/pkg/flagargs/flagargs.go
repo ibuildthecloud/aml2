@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/acorn-io/aml"
+	"github.com/acorn-io/aml/cli/pkg/amlreadhelper"
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 )
 
 type Flags struct {
@@ -95,15 +95,6 @@ func New(argsFile, filename string, profiles schema.Names, args schema.Object) *
 	}
 }
 
-func isYAMLFilename(v string) bool {
-	for _, suffix := range []string{".yaml", ".yml"} {
-		if strings.HasSuffix(strings.ToLower(v), suffix) {
-			return true
-		}
-	}
-	return false
-}
-
 func parseValue(v string, isNumber bool) (any, error) {
 	if !strings.HasPrefix(v, "@") {
 		if isNumber {
@@ -121,17 +112,7 @@ func parseValue(v string, isNumber bool) (any, error) {
 		return data, nil
 	}
 
-	f, err := os.Open(v)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	if isYAMLFilename(v) {
-		return data, yaml.NewDecoder(f).Decode(data)
-	}
-
-	return data, aml.NewDecoder(f).Decode(data)
+	return data, amlreadhelper.UnmarshalFile(v, data)
 }
 
 func (f *Flags) readArgsFile() (map[string]any, error) {

@@ -12,6 +12,19 @@ func (s String) NativeValue() (any, bool, error) {
 	return (string)(s), true, nil
 }
 
+func (s String) Add(right Value) (Value, error) {
+	if err := assertType(right, StringKind); err != nil {
+		return nil, err
+	}
+
+	rightString, err := ToString(right)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewValue(string(s) + rightString), nil
+}
+
 func (s String) Mat(right Value) (Value, error) {
 	if err := assertType(right, StringKind); err != nil {
 		return nil, err

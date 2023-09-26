@@ -16,8 +16,21 @@ func (p Position) String() string {
 	return fmt.Sprintf("%s:%d:%d", p.Filename, p.Line, p.Column)
 }
 
+func IsDefined(val Value) bool {
+	if v, ok := val.(interface {
+		IsDefined() bool
+	}); ok {
+		return v.IsDefined()
+	}
+	return true
+}
+
 type Undefined struct {
 	Pos Position
+}
+
+func (u Undefined) IsDefined() bool {
+	return false
 }
 
 func (u Undefined) NativeValue() (any, bool, error) {

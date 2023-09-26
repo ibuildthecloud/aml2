@@ -48,7 +48,7 @@ func TestEval(t *testing.T) {
 				require.NoError(t, err)
 				autogold.ExpectFile(t, autogold.Raw(data))
 			} else {
-				autogold.ExpectFile(t, err)
+				autogold.ExpectFile(t, err.Error())
 			}
 		})
 	}

@@ -1,6 +1,9 @@
 package eval
 
 import (
+	"fmt"
+
+	"github.com/acorn-io/aml/pkg/errors"
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -10,13 +13,20 @@ var (
 	_ Field = (*KeyValue)(nil)
 )
 
+// FieldSchema are the methods used only in a schema context
+// Implementation can assume that scope.IsSchema will be true
+type FieldSchema interface {
+	AllKeys(scope Scope) ([]string, error)
+	RequiredKeys(scope Scope) ([]string, error)
+	DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error)
+	// ToValueForMatch should return a value only if this field is a match field
+	ToValueForMatch(scope Scope, key string) (value.Value, bool, error)
+}
+
 type Field interface {
 	Expression
-	Keys(scope Scope) ([]string, error)
-	DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error)
-	// ToValueForKey should return the value (right hand side) for this key. If the key evaluates to undefined
-	// then (nil, false, nil) should be returned. If the value (right hand side) evaluates to undefined, undefined
-	// should be returned
+	FieldSchema
+	// ToValueForKey should return value where the key is equals to but ignoring any match fields
 	ToValueForKey(scope Scope, key string) (value.Value, bool, error)
 }
 
@@ -61,14 +71,32 @@ func (k *KeyValue) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schem
 }
 
 func (k *KeyValue) ToValueForKey(scope Scope, key string) (value.Value, bool, error) {
-	if ok, err := k.Key.Matches(scope, key); err != nil || !ok {
+	if ok, err := k.Key.Equals(scope, key); err != nil || !ok {
 		return nil, ok, err
 	}
 	return k.getValueValue(scope, key)
 }
 
-func (k *KeyValue) Keys(scope Scope) ([]string, error) {
-	if k.Optional || k.Local || k.Key.IsMatch() {
+func (k *KeyValue) ToValueForMatch(scope Scope, key string) (value.Value, bool, error) {
+	if ok, err := k.Key.PatternMatches(scope, key); err != nil || !ok {
+		return nil, ok, err
+	}
+	return k.getValueValue(scope, key)
+}
+
+func (k *KeyValue) RequiredKeys(scope Scope) ([]string, error) {
+	if k.Local || k.Optional {
+		return nil, nil
+	}
+	s, ok, err := k.Key.ToString(scope)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return []string{s}, nil
+}
+
+func (k *KeyValue) AllKeys(scope Scope) ([]string, error) {
+	if k.Local {
 		return nil, nil
 	}
 	s, ok, err := k.Key.ToString(scope)
@@ -156,12 +184,13 @@ func (k *FieldKey) IsMatch() bool {
 }
 
 func (k *FieldKey) ToString(scope Scope) (string, bool, error) {
-	source := k.Key
 	if k.IsMatch() {
-		source = k.Match
+		// Match fields should not have a "string" equivalent, they are virtual thingies that only
+		// exist in the magical schema realm
+		return "", false, nil
 	}
 
-	v, ok, err := source.ToValue(scope)
+	v, ok, err := k.Key.ToValue(scope)
 	if err != nil || !ok {
 		return "", ok, err
 	}
@@ -170,18 +199,28 @@ func (k *FieldKey) ToString(scope Scope) (string, bool, error) {
 	return s, true, err
 }
 
-func (k *FieldKey) Matches(scope Scope, key string) (_ bool, returnErr error) {
+type ErrKeyUndefined struct {
+	Key       string
+	Undefined value.Value
+}
+
+func (e *ErrKeyUndefined) Error() string {
+	return fmt.Sprintf("undefined key %s (%s)", e.Key, e.Undefined)
+}
+
+func (k *FieldKey) Equals(scope Scope, key string) (_ bool, returnErr error) {
 	if k.IsMatch() {
-		v, ok, err := k.Match.ToValue(scope)
-		if err != nil || !ok {
-			return ok, err
-		}
-		return value.Match(v, value.NewValue(key))
+		return false, nil
 	}
 
 	v, ok, err := k.Key.ToValue(scope)
-	if err != nil || !ok || v.Kind() == value.UndefinedKind {
+	if err != nil || !ok {
 		return false, err
+	} else if v.Kind() == value.UndefinedKind {
+		return false, errors.NewEvalError(value.Position(k.Pos), &ErrKeyUndefined{
+			Key:       key,
+			Undefined: v,
+		})
 	}
 
 	keyPattern, err := value.ToString(v)
@@ -190,4 +229,15 @@ func (k *FieldKey) Matches(scope Scope, key string) (_ bool, returnErr error) {
 	}
 
 	return keyPattern == key, nil
+}
+
+func (k *FieldKey) PatternMatches(scope Scope, key string) (_ bool, returnErr error) {
+	if !k.IsMatch() {
+		return false, nil
+	}
+	v, ok, err := k.Match.ToValue(scope)
+	if err != nil || !ok {
+		return ok, err
+	}
+	return value.Match(v, value.NewValue(key))
 }

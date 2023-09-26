@@ -34,12 +34,6 @@ var (
 		p.mode |= traceMode
 	}
 
-	// AllErrors causes all errors to be reported (not just the first 10 on different lines).
-	AllErrors Option = allErrors
-	allErrors        = func(p *parser) {
-		p.mode |= allErrorsMode
-	}
-
 	AllowMatch Option = allowMatch
 	allowMatch        = func(p *parser) {
 		p.mode |= allowMatchMode
@@ -54,11 +48,10 @@ type mode uint
 const (
 	parseCommentsMode mode = 1 << iota // parse comments and add them to AST
 	allowMatchMode
-	traceMode     // print a trace of parsed productions
-	allErrorsMode // report all errors (not just the first 10 on different lines)
+	traceMode // print a trace of parsed productions
 )
 
-func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, err error) {
+func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, retErr error) {
 	text, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
@@ -72,29 +65,24 @@ func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, err
 
 		// set result values
 		if f == nil {
-			// source is not a valid Go source file - satisfy
-			// ParseFile API and return a valid (but) empty
-			// *File
-			f = &ast.File{
-				// Scope: NewScope(nil),
-			}
+			f = &ast.File{}
 		}
 
-		err = errors.Sanitize(pp.errors)
+		retErr = errors.SanitizeParserErrors(retErr)
 	}()
 
 	// parse source
 	pp.init(filename, text, mode)
 	f = pp.parseFile()
 	if f == nil {
-		return nil, pp.errors
+		return nil, errors.Join(pp.errors...)
 	}
 	f.Filename = filename
 
-	return f, pp.errors
+	return f, errors.Join(pp.errors...)
 }
 
-func ParseExpr(filename string, src io.Reader, mode ...Option) (ast.Expr, error) {
+func ParseExpr(filename string, src io.Reader, mode ...Option) (_ ast.Expr, retErr error) {
 	text, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
@@ -105,7 +93,7 @@ func ParseExpr(filename string, src io.Reader, mode ...Option) (ast.Expr, error)
 		if p.panicking {
 			_ = recover()
 		}
-		err = errors.Sanitize(p.errors)
+		retErr = errors.SanitizeParserErrors(retErr)
 	}()
 
 	// parse expr
@@ -123,5 +111,5 @@ func ParseExpr(filename string, src io.Reader, mode ...Option) (ast.Expr, error)
 	}
 
 	p.expect(token.EOF)
-	return e, p.errors
+	return e, errors.Join(p.errors...)
 }

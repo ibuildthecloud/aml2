@@ -1,11 +1,11 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/acorn-io/aml/pkg/ast"
+	"github.com/acorn-io/aml/pkg/errors"
 	"github.com/acorn-io/aml/pkg/token"
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -91,6 +91,7 @@ func declToField(decl ast.Decl) (ref Field, err error) {
 		return &result, err
 	case *ast.EmbedDecl:
 		var result Embedded
+		result.Pos = pos(decl.Pos())
 		result.Comments = getComments(decl)
 		result.Expression, err = exprToExpression(v.Expr)
 		return &result, err
@@ -217,6 +218,7 @@ func forClauseToFor(comp *ast.ForClause, expr Expression, merge bool) (*For, err
 			Comments: getComments(comp),
 			Body:     expr,
 			Merge:    merge,
+			Position: pos(comp.Pos()),
 		}
 		err error
 	)
@@ -224,13 +226,13 @@ func forClauseToFor(comp *ast.ForClause, expr Expression, merge bool) (*For, err
 	if comp.Key != nil {
 		result.Key, err = value.Unquote(comp.Key.Name)
 		if err != nil {
-			return nil, err
+			return nil, errors.NewEvalError(posValue(comp.Key.Pos()), err)
 		}
 	}
 
 	result.Value, err = value.Unquote(comp.Value.Name)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewEvalError(posValue(comp.Value.Pos()), err)
 	}
 
 	result.Collection, err = exprToExpression(comp.Source)
@@ -250,7 +252,7 @@ func basicListToValue(lit *ast.BasicLit) (Expression, error) {
 	case token.STRING:
 		s, err := value.Unquote(lit.Value)
 		if err != nil {
-			return nil, err
+			return nil, errors.NewEvalError(posValue(lit.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),
@@ -337,6 +339,10 @@ func pos(t token.Pos) Position {
 	return Position(t.Position())
 }
 
+func posValue(t token.Pos) value.Position {
+	return value.Position(t.Position())
+}
+
 func binaryToExpression(bin *ast.BinaryExpr) (Expression, error) {
 	left, err := exprToExpression(bin.X)
 	if err != nil {
@@ -368,7 +374,7 @@ func parensToExpression(parens *ast.ParenExpr) (Expression, error) {
 func identToExpression(ident *ast.Ident) (Expression, error) {
 	key, err := value.Unquote(ident.Name)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewEvalError(posValue(ident.Pos()), err)
 	}
 	return &Lookup{
 		Comments: getComments(ident),
@@ -546,7 +552,7 @@ func labelToExpression(expr ast.Label) (Expression, error) {
 	case *ast.BasicLit:
 		s, err := value.Unquote(n.Value)
 		if err != nil {
-			return nil, err
+			return nil, errors.NewEvalError(posValue(n.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),
@@ -554,7 +560,7 @@ func labelToExpression(expr ast.Label) (Expression, error) {
 	case *ast.Ident:
 		s, err := value.Unquote(n.Name)
 		if err != nil {
-			return nil, err
+			return nil, errors.NewEvalError(posValue(n.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),

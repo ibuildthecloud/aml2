@@ -3,6 +3,7 @@ package eval
 import (
 	"fmt"
 
+	"github.com/acorn-io/aml/pkg/errors"
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
@@ -13,24 +14,22 @@ var (
 )
 
 type Embedded struct {
+	Pos        Position
 	Comments   Comments
 	Expression Expression
 }
 
 func (e *Embedded) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
+	// Get unique path so that schema references work correctly
 	scope = scope.Push(nil, ScopeOption{
 		Path: fmt.Sprintf("embedded.%d", ctx.GetIndex()),
 	})
+
 	v, ok, err := e.ToValue(scope)
 	if err != nil {
 		return nil, err
 	} else if !ok {
 		return nil, nil
-	}
-
-	t := value.TargetKind(v)
-	if t != value.ObjectKind {
-		return nil, fmt.Errorf("embedded expressions in schemas must result in an object not %s", t)
 	}
 
 	obj, err := value.DescribeObject(ctx, v)
@@ -49,20 +48,53 @@ func (e *Embedded) ToValueForKey(scope Scope, key string) (value.Value, bool, er
 	v, ok, err := e.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
-	} else if v.Kind() == value.UndefinedKind {
-		return nil, false, nil
+	}
+	if v.Kind() == value.UndefinedKind {
+		return nil, false, errors.NewEvalError(value.Position(e.Pos), &ErrKeyUndefined{
+			Key:       key,
+			Undefined: v,
+		})
 	}
 	return value.Lookup(v, value.NewValue(key))
 }
 
-func (e *Embedded) Keys(scope Scope) ([]string, error) {
+func (e *Embedded) RequiredKeys(scope Scope) ([]string, error) {
 	v, ok, err := e.ToValue(scope)
-	if err != nil {
+	if err != nil || !ok {
 		return nil, err
-	} else if !ok {
-		return nil, nil
 	}
-	return value.Keys(v)
+	if c, ok := v.(interface {
+		GetContract() value.Contract
+	}); ok {
+		return c.GetContract().RequiredKeys()
+	}
+	return nil, nil
+}
+
+func (e *Embedded) AllKeys(scope Scope) ([]string, error) {
+	v, ok, err := e.ToValue(scope)
+	if err != nil || !ok {
+		return nil, err
+	}
+	if c, ok := v.(interface {
+		GetContract() value.Contract
+	}); ok {
+		return c.GetContract().AllKeys()
+	}
+	return nil, nil
+}
+
+func (e *Embedded) ToValueForMatch(scope Scope, key string) (value.Value, bool, error) {
+	v, ok, err := e.ToValue(scope)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	if c, ok := v.(interface {
+		GetContract() value.Contract
+	}); ok {
+		return c.GetContract().LookupValueForKeyPatternMatch(key)
+	}
+	return nil, false, nil
 }
 
 func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {

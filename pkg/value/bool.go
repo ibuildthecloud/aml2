@@ -1,11 +1,17 @@
 package value
 
+import "fmt"
+
 var (
 	True  = Boolean(true)
 	False = Boolean(false)
 )
 
 type Boolean bool
+
+func (n Boolean) String() string {
+	return fmt.Sprint(bool(n))
+}
 
 func (n Boolean) IsTrue() bool {
 	return bool(n)

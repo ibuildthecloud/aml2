@@ -15,6 +15,15 @@ func NewArray(objs []any) Array {
 	return a
 }
 
+func (a Array) IsDefined() bool {
+	for _, item := range a {
+		if !IsDefined(item) {
+			return false
+		}
+	}
+	return true
+}
+
 func (a Array) Eq(right Value) (Value, error) {
 	if right.Kind() != ArrayKind {
 		return nil, fmt.Errorf("can not compare array with kind %s", right.Kind())

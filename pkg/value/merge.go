@@ -26,6 +26,9 @@ type Merger interface {
 
 func Merge(values ...Value) (result Value, err error) {
 	for _, item := range values {
+		if item.Kind() == UndefinedKind {
+			return item, nil
+		}
 		if result == nil {
 			result = item
 		} else {

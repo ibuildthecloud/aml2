@@ -29,6 +29,15 @@ func NewObject(data map[string]any) *Object {
 	return o
 }
 
+func (n *Object) IsDefined() bool {
+	for _, entry := range n.Entries {
+		if !IsDefined(entry.Value) {
+			return false
+		}
+	}
+	return true
+}
+
 func (n *Object) LookupValue(key Value) (Value, bool, error) {
 	for _, e := range n.Entries {
 		b, err := Eq(key, NewValue(e.Key))

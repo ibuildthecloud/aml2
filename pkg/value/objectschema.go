@@ -37,8 +37,10 @@ type Contract interface {
 	Path() string
 	Description() string
 	Fields(ctx SchemaContext) ([]schema.Field, error)
+	AllKeys() ([]string, error)
 	RequiredKeys() ([]string, error)
-	LookupValue(key string) (Value, bool, error)
+	LookupValueForKeyEquals(key string) (Value, bool, error)
+	LookupValueForKeyPatternMatch(key string) (Value, bool, error)
 	AllowNewKeys() bool
 }
 
@@ -46,6 +48,10 @@ func NewObjectSchema(contract Contract) *ObjectSchema {
 	return &ObjectSchema{
 		Contract: contract,
 	}
+}
+
+func (n *ObjectSchema) GetContract() Contract {
+	return n.Contract
 }
 
 func (n *ObjectSchema) TargetKind() Kind {
@@ -105,7 +111,7 @@ func (n *ObjectSchema) DescribeObject(ctx SchemaContext) (*schema.Object, bool, 
 }
 
 func (n *ObjectSchema) Keys() ([]string, error) {
-	return n.Contract.RequiredKeys()
+	return n.Contract.AllKeys()
 }
 
 func (n *ObjectSchema) LookupValue(key Value) (Value, bool, error) {
@@ -113,7 +119,32 @@ func (n *ObjectSchema) LookupValue(key Value) (Value, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	return n.Contract.LookupValue(s)
+	return n.Contract.LookupValueForKeyEquals(s)
+}
+
+func (n *ObjectSchema) getSchemaForKey(key string) (Value, bool, error) {
+	schemaValue, ok, err := n.Contract.LookupValueForKeyEquals(key)
+	if err != nil {
+		return nil, false, err
+	} else if ok {
+		return schemaValue, true, nil
+	}
+
+	return n.Contract.LookupValueForKeyPatternMatch(key)
+}
+
+type ErrSchemaViolation struct {
+	Path string
+	Key  string
+	Err  error
+}
+
+func (e *ErrSchemaViolation) Unwrap() error {
+	return e.Err
+}
+
+func (e *ErrSchemaViolation) Error() string {
+	return fmt.Sprintf("schema violation %s.%s: %v", e.Path, e.Key, e.Err)
 }
 
 func (n *ObjectSchema) Merge(right Value) (Value, error) {
@@ -160,18 +191,23 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 		}
 		keysSeen[key] = struct{}{}
 
-		schemaValue, ok, err := n.Contract.LookupValue(key)
+		schemaValue, ok, err := n.getSchemaForKey(key)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
 			rightValue, err = Merge(schemaValue, rightValue)
 			if err != nil {
-				return nil, err
+				return nil, &ErrSchemaViolation{
+					Key:  key,
+					Path: n.Contract.Path(),
+					Err:  err,
+				}
 			}
 		} else if !n.Contract.AllowNewKeys() {
 			return nil, &ErrUnknownField{
-				Key: key,
+				Path: n.Contract.Path(),
+				Key:  key,
 			}
 		}
 
@@ -186,7 +222,7 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 		if _, seen := keysSeen[k]; seen {
 			continue
 		}
-		def, ok, err := n.Contract.LookupValue(k)
+		def, ok, err := n.getSchemaForKey(k)
 		if err != nil {
 			return nil, err
 		}
@@ -202,6 +238,7 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 
 	if len(missingKeys) > 0 {
 		return nil, &ErrMissingRequiredKeys{
+			Path: n.Contract.Path(),
 			Keys: missingKeys,
 		}
 	}
@@ -210,6 +247,8 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 		Entries: append(head, tail...),
 	}, nil
 }
+
+var _ Contract = (*mergedContract)(nil)
 
 type mergedContract struct {
 	Left, Right Contract
@@ -245,6 +284,31 @@ func (m *mergedContract) Path() string {
 	return m.Left.Path()
 }
 
+func (m *mergedContract) AllKeys() ([]string, error) {
+	result, err := m.Left.AllKeys()
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	for _, key := range result {
+		seen[key] = struct{}{}
+	}
+
+	rightKeys, err := m.Right.AllKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, key := range rightKeys {
+		if _, ok := seen[key]; !ok {
+			result = append(result, key)
+			seen[key] = struct{}{}
+		}
+	}
+
+	return result, nil
+}
+
 func (m *mergedContract) RequiredKeys() ([]string, error) {
 	result, err := m.Left.RequiredKeys()
 	if err != nil {
@@ -270,17 +334,31 @@ func (m *mergedContract) RequiredKeys() ([]string, error) {
 	return result, nil
 }
 
-func (m *mergedContract) LookupValue(key string) (Value, bool, error) {
-	leftValue, ok, err := m.Left.LookupValue(key)
+func (m *mergedContract) LookupValueForKeyEquals(key string) (Value, bool, error) {
+	return m.lookupValue(
+		m.Left.LookupValueForKeyEquals,
+		m.Right.LookupValueForKeyEquals,
+		key)
+}
+
+func (m *mergedContract) LookupValueForKeyPatternMatch(key string) (Value, bool, error) {
+	return m.lookupValue(
+		m.Left.LookupValueForKeyPatternMatch,
+		m.Right.LookupValueForKeyPatternMatch,
+		key)
+}
+
+func (m *mergedContract) lookupValue(leftLookup, rightLookup func(string) (Value, bool, error), key string) (Value, bool, error) {
+	leftValue, ok, err := leftLookup(key)
 	if err != nil {
 		return nil, false, err
 	}
 
 	if !ok {
-		return m.Right.LookupValue(key)
+		return rightLookup(key)
 	}
 
-	rightValue, ok, err := m.Right.LookupValue(key)
+	rightValue, ok, err := rightLookup(key)
 	if err != nil {
 		return nil, false, err
 	}
@@ -298,17 +376,23 @@ func (m *mergedContract) AllowNewKeys() bool {
 }
 
 type ErrUnknownField struct {
-	Key string
+	Path string
+	Key  string
 }
 
 func (e *ErrUnknownField) Error() string {
-	return fmt.Sprintf("unknown field: %s", e.Key)
+	return fmt.Sprintf("unknown field: %s.%s", e.Path, e.Key)
 }
 
 type ErrMissingRequiredKeys struct {
+	Path string
 	Keys []string
 }
 
 func (e *ErrMissingRequiredKeys) Error() string {
-	return fmt.Sprintf("missing required keys: %v", e.Keys)
+	var keys []string
+	for _, key := range e.Keys {
+		keys = append(keys, e.Path+"."+key)
+	}
+	return fmt.Sprintf("missing required key(s): %v", keys)
 }

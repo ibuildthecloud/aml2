@@ -1,6 +1,7 @@
 package value
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,7 +67,9 @@ func Unquote(s string) (string, error) {
 	}
 	if strings.HasPrefix(s, "\"") {
 		ret, err := strconv.Unquote(s)
-		if err != nil {
+		if errors.Is(err, strconv.ErrSyntax) {
+			err = fmt.Errorf("%w: invalid or missing escape (\\) sequence %s", err, s)
+		} else if err != nil {
 			err = fmt.Errorf("%w: %s", err, s)
 		}
 		return ret, err

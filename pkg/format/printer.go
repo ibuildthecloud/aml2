@@ -55,7 +55,7 @@ func (p *printer) init(cfg *config) {
 }
 
 func (p *printer) errf(n ast.Node, format string, args ...interface{}) {
-	p.errs = append(p.errs, errors.Newf(n.Pos(), format, args...))
+	p.errs = append(p.errs, errors.NewParserError(n.Pos(), format, args...))
 }
 
 const debug = false

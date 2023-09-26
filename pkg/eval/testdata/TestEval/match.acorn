@@ -9,10 +9,11 @@ let x: 1
 {
 	Test
 	{
-        blah: string
-		f: 2
+		blah: 5
+		f: "hi"
 		a: 3
 		y: x
-        blah2: blah
+		missing: "nope it's here"
+		blah2: blah
 	}
 }

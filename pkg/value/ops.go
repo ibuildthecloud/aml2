@@ -35,6 +35,14 @@ func NewValue(v any) Value {
 		return NewObject(x)
 	case []any:
 		return NewArray(x)
+	case []Value:
+		return Array(x)
+	case []string:
+		var ret []any
+		for _, i := range x {
+			ret = append(ret, i)
+		}
+		return NewArray(ret)
 	case Contract:
 		return NewObjectSchema(x)
 	default:

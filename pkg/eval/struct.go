@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/acorn-io/aml/pkg/value"
@@ -17,10 +18,11 @@ func (s *Struct) ScopeLookup(scope Scope, key string) (value.Value, bool, error)
 
 	for _, field := range s.Fields {
 		val, ok, err := field.ToValueForKey(scope, key)
-		if err != nil {
+		if c := (*ErrKeyUndefined)(nil); errors.As(err, &c) {
+			continue
+		} else if err != nil {
 			return nil, false, err
-		}
-		if !ok {
+		} else if !ok {
 			continue
 		}
 		values = append(values, val)
@@ -39,7 +41,7 @@ func (s *Struct) ToValue(scope Scope) (value.Value, bool, error) {
 	}
 
 	scope = scope.Push(s)
-	values, err := FieldsToValues(scope.Push(s), s.Fields)
+	values, err := FieldsToValues(scope, s.Fields)
 	if err != nil {
 		return nil, false, err
 	}

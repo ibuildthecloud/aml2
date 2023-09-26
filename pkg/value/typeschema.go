@@ -223,6 +223,10 @@ func TargetKind(v Value) Kind {
 }
 
 func (n *TypeSchema) And(right Value) (Value, error) {
+	if n.TargetKind() == SchemaKind && right.Kind() == SchemaKind {
+		return right, nil
+	}
+
 	rightSchema, ok := right.(*TypeSchema)
 	if !ok {
 		return nil, fmt.Errorf("expected kind %s, got %s", n.Kind(), right.Kind())
@@ -276,7 +280,13 @@ func (n *TypeSchema) Or(right Value) (Value, error) {
 }
 
 func (n *TypeSchema) Default() (Value, bool) {
-	return n.DefaultValue, n.DefaultValue != nil
+	if n.DefaultValue != nil {
+		return n.DefaultValue, true
+	}
+	if n.Alternate != nil {
+		return n.Alternate.Default()
+	}
+	return nil, false
 }
 
 func checkType(schema *TypeSchema, right Value) (Value, error) {

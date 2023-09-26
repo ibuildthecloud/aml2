@@ -13,7 +13,7 @@ import (
 type parser struct {
 	file    *token.File
 	offset  int
-	errors  errors.Error
+	errors  []error
 	scanner scanner.Scanner
 
 	// Tracing/debugging
@@ -54,7 +54,7 @@ func (p *parser) init(filename string, src []byte, mode []Option) {
 		m = scanner.ScanComments
 	}
 	eh := func(pos token.Pos, msg string, args []interface{}) {
-		p.errors = errors.Append(p.errors, errors.Newf(pos, msg, args...))
+		p.errors = append(p.errors, errors.NewParserError(pos, msg, args...))
 	}
 	p.scanner.Init(p.file, src, eh, m)
 
@@ -149,8 +149,8 @@ func (p *parser) closeList() {
 	switch c.isList--; {
 	case c.isList < 0:
 		if !p.panicking {
-			err := errors.Newf(p.pos, "unmatched close list")
-			p.errors = errors.Append(p.errors, err)
+			err := errors.NewParserError(p.pos, "unmatched close list")
+			p.errors = append(p.errors, err)
 			p.panicking = true
 			panic(err)
 		}
@@ -167,8 +167,8 @@ func (p *parser) closeList() {
 func (c *commentState) closeNode(p *parser, n ast.Node) ast.Node {
 	if p.comments != c {
 		if !p.panicking {
-			err := errors.Newf(p.pos, "unmatched comments")
-			p.errors = errors.Append(p.errors, err)
+			err := errors.NewParserError(p.pos, "unmatched comments")
+			p.errors = append(p.errors, err)
 			p.panicking = true
 			panic(err)
 		}
@@ -349,25 +349,8 @@ func (p *parser) next() {
 }
 
 func (p *parser) errf(pos token.Pos, msg string, args ...interface{}) {
-	// ePos := p.file.Position(pos)
 	ePos := pos
-
-	// If AllErrors is not set, discard errors reported on the same line
-	// as the last recorded error and stop parsing if there are more than
-	// 10 errors.
-	if p.mode&allErrorsMode == 0 {
-		errors := errors.Errors(p.errors)
-		n := len(errors)
-		if n > 0 && errors[n-1].Position().Line() == ePos.Line() {
-			return // discard - likely a spurious error
-		}
-		if n > 10 {
-			p.panicking = true
-			panic("too many errors")
-		}
-	}
-
-	p.errors = errors.Append(p.errors, errors.Newf(ePos, msg, args...))
+	p.errors = append(p.errors, errors.NewParserError(ePos, msg, args...))
 }
 
 func (p *parser) errorExpected(pos token.Pos, obj string) {
@@ -566,6 +549,9 @@ func (p *parser) parseDefault() (expr ast.Expr) {
 	defer func() { c.closeNode(p, expr) }()
 
 	pos := p.expect(token.DEFAULT)
+	if p.tok == token.COLON {
+		return &ast.Ident{NamePos: pos, Name: token.DEFAULT.String()}
+	}
 	x := p.parseExpr()
 
 	return &ast.DefaultExpr{
@@ -1128,6 +1114,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.BinaryExpr:
 	case *ast.ListComprehension:
 	case *ast.SchemaLit:
+	case *ast.DefaultExpr:
 	default:
 		// all other nodes are not proper expressions
 		p.errorExpected(x.Pos(), "expression")
