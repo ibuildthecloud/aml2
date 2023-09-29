@@ -23,7 +23,8 @@ import (
 )
 
 var (
-	nativeFuncs = map[string]any{
+	DebugEnabled = true
+	nativeFuncs  = map[string]any{
 		"atoi":          NativeFuncValue(Atoi),
 		"range":         NativeFuncValue(Range),
 		"fromYAML":      NativeFuncValue(FromYAML),
@@ -61,7 +62,7 @@ var (
 		"sort":          NativeFuncValue(Sort),
 		"mod":           NativeFuncValue(Mod),
 		"error":         NativeFuncValue(Error),
-		//"debug":        NativeFuncValue(Debug),
+		"debug":         NativeFuncValue(Debug),
 	}
 )
 
@@ -98,13 +99,20 @@ func Error(_ context.Context, args []value.Value) (value.Value, bool, error) {
 }
 
 func Debug(_ context.Context, args []value.Value) (value.Value, bool, error) {
+	if !DebugEnabled {
+		return nil, false, nil
+	}
 	s, err := value.ToString(args[0])
 	if err == nil {
 		var v []any
 		for _, x := range args[1:] {
 			v = append(v, x)
 		}
-		log.Printf(s, v...)
+		if strings.Contains(s, "%") {
+			log.Printf("AML DEBUG: "+s, v...)
+		} else {
+			log.Print(append([]any{"AML DEBUG: " + s}, v...))
+		}
 	}
 	return nil, false, nil
 }
@@ -693,6 +701,59 @@ func Atoi(_ context.Context, args []value.Value) (value.Value, bool, error) {
 
 	i, err := strconv.Atoi(str)
 	return value.NewValue(i), true, err
+}
+
+func Int() value.Value {
+	return &value.TypeSchema{
+		KindValue: value.NumberKind,
+		Constraints: []value.Checker{
+			&value.CustomConstraint{
+				CustomDescription: "integer",
+				Checker: func(left value.Value) error {
+					_, err := value.ToInt(left)
+					return err
+				},
+			},
+		},
+	}
+}
+
+func Any(kinds map[string]any) value.Value {
+	var result *value.TypeSchema
+	for _, name := range []string{"bool", "number", "string", "object", "array", "null"} {
+		cp := *(kinds[name].(*value.TypeSchema))
+		cp.Alternate = result
+		result = &cp
+	}
+	return result
+}
+
+func Enum(_ context.Context, args []value.Value) (value.Value, bool, error) {
+	var result *value.TypeSchema
+
+	if len(args) == 0 {
+		return nil, false, fmt.Errorf("can not create an empty enum")
+	}
+
+	for _, arg := range args {
+		s, err := value.ToString(arg)
+		if err != nil {
+			return nil, false, err
+		}
+		next := result
+		result = &value.TypeSchema{
+			KindValue: value.StringKind,
+			Constraints: []value.Checker{
+				&value.Constraint{
+					Op:    "==",
+					Right: value.NewValue(s),
+				},
+			},
+		}
+		result.Alternate = next
+	}
+
+	return result, true, nil
 }
 
 func Range(_ context.Context, args []value.Value) (value.Value, bool, error) {

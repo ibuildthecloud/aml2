@@ -24,3 +24,11 @@ func EvalExpr(ctx context.Context, expr Expression) (value.Value, bool, error) {
 	})
 	return expr.ToValue(scope)
 }
+
+func EvalSchema(ctx context.Context, expr Expression) (value.Value, bool, error) {
+	scope := Builtin.Push(nil, ScopeOption{
+		Schema:  true,
+		Context: ctx,
+	})
+	return expr.ToValue(scope)
+}

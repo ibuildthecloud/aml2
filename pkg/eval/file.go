@@ -38,9 +38,10 @@ func (f *File) DescribeFile() (*schema.File, error) {
 
 func (f *File) ToFunction(scope Scope) (value.Value, bool, error) {
 	def := &FunctionDefinition{
-		Body:       f.Body,
-		ReturnBody: true,
-		AssignRoot: true,
+		Body:             f.Body,
+		ReturnBody:       true,
+		AllowUnknownArgs: true,
+		AssignRoot:       true,
 	}
 	return def.ToValue(scope)
 }

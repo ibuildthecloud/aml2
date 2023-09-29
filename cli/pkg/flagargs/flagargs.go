@@ -38,39 +38,34 @@ func ParseArgs(argsFile, acornFile string, args []string) (map[string]any, []str
 		return nil, nil, err
 	}
 
-	flags := New(argsFile, filepath.Base(acornFile), file.ProfileNames, file.Args)
+	flags := New(argsFile, filepath.Base(acornFile), file.ProfileNames, file.Args.Fields)
 	return flags.Parse(args)
 }
 
-func New(argsFile, filename string, profiles schema.Names, args schema.Object) *Flags {
+func New(argsFile, filename string, profiles schema.Names, args []schema.Field) *Flags {
 	var (
 		flagSet    = pflag.NewFlagSet(filename, pflag.ContinueOnError)
 		fieldFlags = map[string]fieldFlag{}
 		profile    *[]string
 	)
 
-	if len(profiles) == 0 {
-		var empty []string
-		profile = &empty
-	} else {
-		desc := strings.Builder{}
-		desc.WriteString("Available profiles (")
-		startLen := desc.Len()
-		for _, name := range profiles {
-			val := name.Value
-			if name.Description != "" {
-				val += ": " + name.Description
-			}
-			if desc.Len() > startLen {
-				desc.WriteString(", ")
-			}
-			desc.WriteString(val)
+	desc := strings.Builder{}
+	desc.WriteString("Available profiles (")
+	startLen := desc.Len()
+	for _, name := range profiles {
+		val := name.Name
+		if name.Description != "" {
+			val += ": " + name.Description
 		}
-		desc.WriteString(")")
-		profile = flagSet.StringSlice("profile", nil, desc.String())
+		if desc.Len() > startLen {
+			desc.WriteString(", ")
+		}
+		desc.WriteString(val)
 	}
+	desc.WriteString(")")
+	profile = flagSet.StringSlice("profile", nil, desc.String())
 
-	for _, field := range args.Fields {
+	for _, field := range args {
 		flag := fieldFlag{
 			Field: field,
 		}
@@ -112,7 +107,7 @@ func parseValue(v string, isNumber bool) (any, error) {
 		return data, nil
 	}
 
-	return data, amlreadhelper.UnmarshalFile(v, data)
+	return data, amlreadhelper.UnmarshalFile(v, &data)
 }
 
 func (f *Flags) readArgsFile() (map[string]any, error) {

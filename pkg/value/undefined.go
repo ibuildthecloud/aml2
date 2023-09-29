@@ -9,6 +9,8 @@ type Position struct {
 	Column   int
 }
 
+var NoPosition = Position{}
+
 func (p Position) String() string {
 	if p.Filename == "" {
 		return fmt.Sprintf("%d:%d", p.Line, p.Column)

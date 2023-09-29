@@ -3,37 +3,27 @@ package value
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/acorn-io/aml/pkg/schema"
 )
 
-type DescribeArrayer interface {
-	DescribeArray(ctx SchemaContext) (*schema.Array, bool, error)
-}
-
-func DescribeArray(ctx SchemaContext, val Value) (*schema.Array, error) {
-	if err := assertType(val, SchemaKind); err != nil {
-		return nil, err
-	}
-	if s, ok := val.(DescribeArrayer); ok {
-		schema, ok, err := s.DescribeArray(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return nil, fmt.Errorf("array value did not provide a schema")
-		}
-		return schema, nil
-	}
-	return nil, fmt.Errorf("array value can not be converted to schema")
-}
-
 type ArraySchema []Value
+
+func NewArraySchema(val []Value) *TypeSchema {
+	schema := ArraySchema(val)
+	return &TypeSchema{
+		KindValue: ArrayKind,
+		Array:     &schema,
+	}
+}
 
 func (a ArraySchema) Merge(right Value) (Value, error) {
 	if ts, ok := right.(*TypeSchema); ok && ts.KindValue == ArrayKind {
-		return a, nil
+		ret := append(a, *ts.Array...)
+		return &TypeSchema{
+			KindValue: ArrayKind,
+			Array:     &ret,
+		}, nil
 	}
 
 	if err := assertType(right, ArrayKind); err != nil {

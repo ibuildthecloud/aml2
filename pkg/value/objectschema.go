@@ -22,11 +22,11 @@ func DescribeObject(ctx SchemaContext, val Value) (*schema.Object, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, fmt.Errorf("value kind %s did not provide a schema description", val.Kind())
+			return nil, fmt.Errorf("value kind %s did not provide a schema object description", val.Kind())
 		}
 		return schema, nil
 	}
-	return nil, fmt.Errorf("value kind %s can not be converted to schema description", val.Kind())
+	return nil, fmt.Errorf("value kind %s can not be converted to schema object description", val.Kind())
 }
 
 type ObjectSchema struct {
@@ -34,6 +34,7 @@ type ObjectSchema struct {
 }
 
 type Contract interface {
+	Position() Position
 	Path() string
 	Description() string
 	Fields(ctx SchemaContext) ([]schema.Field, error)
@@ -44,14 +45,27 @@ type Contract interface {
 	AllowNewKeys() bool
 }
 
-func NewObjectSchema(contract Contract) *ObjectSchema {
-	return &ObjectSchema{
-		Contract: contract,
+func NewClosedObject() *TypeSchema {
+	return &TypeSchema{
+		KindValue: ObjectKind,
+		Object: &ObjectSchema{
+			Contract: noFields{},
+		},
 	}
 }
 
-func (n *ObjectSchema) GetContract() Contract {
-	return n.Contract
+func NewObjectSchema(contract Contract) *TypeSchema {
+	return &TypeSchema{
+		Position:  contract.Position(),
+		KindValue: ObjectKind,
+		Object: &ObjectSchema{
+			Contract: contract,
+		},
+	}
+}
+
+func (n *ObjectSchema) GetContract() (Contract, bool) {
+	return n.Contract, true
 }
 
 func (n *ObjectSchema) TargetKind() Kind {
@@ -144,7 +158,54 @@ func (e *ErrSchemaViolation) Unwrap() error {
 }
 
 func (e *ErrSchemaViolation) Error() string {
-	return fmt.Sprintf("schema violation %s.%s: %v", e.Path, e.Key, e.Err)
+	bottom := BottomLeftMost(e)
+	s := fmt.Sprintf("schema violation %s.%s: %v", bottom.Path, bottom.Key, bottom.Err)
+	if len(s) > 200 {
+		return s[:200]
+	}
+	return s
+}
+
+type x interface {
+	comparable
+	error
+}
+
+func unwrapOnce(err error) error {
+	next := errors.Unwrap(err)
+	if next != nil {
+		return next
+	}
+
+	list, ok := err.(interface{ Unwrap() []error })
+	if ok {
+		errs := list.Unwrap()
+		if len(errs) > 0 {
+			return errs[0]
+		}
+	}
+
+	return nil
+}
+
+func BottomLeftMost[T x](start T) T {
+	var (
+		last       = start
+		cur  error = start
+	)
+
+	for {
+		next := unwrapOnce(cur)
+		if next == nil {
+			break
+		}
+		if x, ok := next.(T); ok {
+			last = x
+		}
+		cur = next
+	}
+
+	return last
 }
 
 func (n *ObjectSchema) Merge(right Value) (Value, error) {
@@ -226,7 +287,9 @@ func (n *ObjectSchema) Merge(right Value) (Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		if def, hasDefault := DefaultValue(def); ok && hasDefault {
+		if def, hasDefault, err := DefaultValue(def); err != nil {
+			return nil, err
+		} else if ok && hasDefault {
 			head = append(head, Entry{
 				Key:   k,
 				Value: def,
@@ -252,6 +315,13 @@ var _ Contract = (*mergedContract)(nil)
 
 type mergedContract struct {
 	Left, Right Contract
+}
+
+func (m *mergedContract) Position() Position {
+	if pos := m.Left.Position(); pos != NoPosition {
+		return pos
+	}
+	return m.Right.Position()
 }
 
 func (m *mergedContract) Description() string {
@@ -395,4 +465,43 @@ func (e *ErrMissingRequiredKeys) Error() string {
 		keys = append(keys, e.Path+"."+key)
 	}
 	return fmt.Sprintf("missing required key(s): %v", keys)
+}
+
+type noFields struct {
+}
+
+func (n noFields) Position() Position {
+	return Position{}
+}
+
+func (n noFields) Path() string {
+	return ""
+}
+
+func (n noFields) Description() string {
+	return ""
+}
+
+func (n noFields) Fields(ctx SchemaContext) ([]schema.Field, error) {
+	return nil, nil
+}
+
+func (n noFields) AllKeys() ([]string, error) {
+	return nil, nil
+}
+
+func (n noFields) RequiredKeys() ([]string, error) {
+	return nil, nil
+}
+
+func (n noFields) LookupValueForKeyEquals(key string) (Value, bool, error) {
+	return nil, false, nil
+}
+
+func (n noFields) LookupValueForKeyPatternMatch(key string) (Value, bool, error) {
+	return nil, false, nil
+}
+
+func (n noFields) AllowNewKeys() bool {
+	return false
 }

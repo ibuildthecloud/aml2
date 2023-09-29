@@ -8,6 +8,7 @@ import (
 )
 
 type Struct struct {
+	Position Position
 	Comments Comments
 	Fields   []Field
 }
@@ -64,5 +65,5 @@ func (c Comments) Last() string {
 	if len(c.Comments) == 0 {
 		return ""
 	}
-	return strings.Join(c.Comments[len(c.Comments)-1], "\n")
+	return strings.TrimSpace(strings.Join(c.Comments[0], "\n"))
 }

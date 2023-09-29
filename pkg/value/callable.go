@@ -14,7 +14,7 @@ type Caller interface {
 	Call(ctx context.Context, args []CallArgument) (Value, bool, error)
 }
 
-func Call(ctx context.Context, value Value, args ...CallArgument) (Value, bool, error) {
+func Call(ctx context.Context, value Value, args ...CallArgument) (_ Value, _ bool, ret error) {
 	if value.Kind() == UndefinedKind {
 		return value, true, nil
 	}

@@ -14,17 +14,22 @@ import (
 	"github.com/acorn-io/aml/pkg/value"
 )
 
-type Option struct {
-	PositionalArgs []any
-	Args           map[string]any
-	Profiles       []string
-	SourceName     string
-	Context        context.Context
+type DecoderOption struct {
+	PositionalArgs   []any
+	Args             map[string]any
+	Profiles         []string
+	SourceName       string
+	SchemaSourceName string
+	Schema           io.Reader
+	Context          context.Context
 }
 
-func (o Option) Complete() Option {
+func (o DecoderOption) Complete() DecoderOption {
 	if o.SourceName == "" {
 		o.SourceName = "<inline>"
+	}
+	if o.SchemaSourceName == "" {
+		o.SchemaSourceName = "<inline>"
 	}
 	if o.Context == nil {
 		o.Context = context.Background()
@@ -32,9 +37,9 @@ func (o Option) Complete() Option {
 	return o
 }
 
-type Options []Option
+type DecoderOptions []DecoderOption
 
-func (o Options) Merge() (result Option) {
+func (o DecoderOptions) Merge() (result DecoderOption) {
 	for _, opt := range o {
 		result.PositionalArgs = append(result.PositionalArgs, opt.PositionalArgs...)
 		result.Profiles = append(result.Profiles, opt.Profiles...)
@@ -50,20 +55,44 @@ func (o Options) Merge() (result Option) {
 		for k, v := range opt.Args {
 			result.Args[k] = v
 		}
+		if opt.Schema != nil {
+			result.Schema = opt.Schema
+		}
 	}
 	return
 }
 
 type Decoder struct {
-	opts  Option
+	opts  DecoderOption
 	input io.Reader
 }
 
-func NewDecoder(input io.Reader, opts ...Option) *Decoder {
+func NewDecoder(input io.Reader, opts ...DecoderOption) *Decoder {
 	return &Decoder{
-		opts:  Options(opts).Merge().Complete(),
+		opts:  DecoderOptions(opts).Merge().Complete(),
 		input: input,
 	}
+}
+
+func (d *Decoder) processSchema(data value.Value) (value.Value, error) {
+	f := &eval.File{}
+
+	err := NewDecoder(d.opts.Schema, DecoderOption{
+		Context:    d.opts.Context,
+		SourceName: d.opts.SchemaSourceName,
+	}).Decode(f)
+	if err != nil {
+		return nil, err
+	}
+
+	schema, ok, err := eval.EvalSchema(d.opts.Context, f)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, fmt.Errorf("invalid schema %s yield no schema value", d.opts.SchemaSourceName)
+	}
+
+	return value.Merge(schema, data)
 }
 
 func (d *Decoder) Decode(out any) error {
@@ -101,6 +130,20 @@ func (d *Decoder) Decode(out any) error {
 		}
 		*n = *fileSchema
 		return nil
+	case *schema.Summary:
+		val, ok, err := eval.EvalSchema(d.opts.Context, file)
+		if err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("source <%s> did not produce a value", d.opts.SourceName)
+		}
+		objSchema, err := value.DescribeObject(value.SchemaContext{}, val)
+		if err != nil {
+			return err
+		}
+
+		*n = schema.Summarize(*objSchema)
+		return nil
 	}
 
 	val, ok, err := eval.EvalExpr(d.opts.Context, file)
@@ -108,6 +151,13 @@ func (d *Decoder) Decode(out any) error {
 		return err
 	} else if !ok {
 		return fmt.Errorf("source <%s> did not produce a value", d.opts.SourceName)
+	}
+
+	if d.opts.Schema != nil {
+		val, err = d.processSchema(val)
+		if err != nil {
+			return err
+		}
 	}
 
 	switch n := out.(type) {
@@ -131,6 +181,6 @@ func (d *Decoder) Decode(out any) error {
 	return json.NewDecoder(buf).Decode(out)
 }
 
-func Unmarshal(data []byte, v any, opts ...Option) error {
+func Unmarshal(data []byte, v any, opts ...DecoderOption) error {
 	return NewDecoder(bytes.NewReader(data), opts...).Decode(v)
 }

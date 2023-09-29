@@ -358,7 +358,7 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 
 	switch x := expr.(type) {
 	case *ast.BadExpr:
-		f.print(x.From, "_|_")
+		f.print(x.From, "INVALID EXPRESSION")
 
 	case *ast.Ident:
 		f.print(x.NamePos, x)

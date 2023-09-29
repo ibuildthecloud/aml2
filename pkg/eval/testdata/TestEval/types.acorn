@@ -1,5 +1,5 @@
 int: 1
-string: "str"
+"string": "str"
 bool: true
 nil: null
 obj: {

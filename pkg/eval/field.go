@@ -14,7 +14,7 @@ var (
 )
 
 // FieldSchema are the methods used only in a schema context
-// Implementation can assume that scope.IsSchema will be true
+// Implementateon can assume that scope.IsSchema will be true
 type FieldSchema interface {
 	AllKeys(scope Scope) ([]string, error)
 	RequiredKeys(scope Scope) ([]string, error)
@@ -40,11 +40,32 @@ type KeyValue struct {
 }
 
 func (k *KeyValue) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schema.Field, error) {
-	key, ok, err := k.Key.ToString(scope)
-	if err != nil {
-		return nil, err
-	} else if !ok {
+	var (
+		key string
+	)
+
+	if k.Local {
 		return nil, nil
+	}
+
+	if k.Key.IsMatch() {
+		v, ok, err := k.Key.Match.ToValue(scope)
+		if err != nil || !ok {
+			return nil, nil
+		}
+		str, err := value.ToString(v)
+		if err != nil {
+			return nil, err
+		}
+		key = str
+	} else {
+		str, ok, err := k.Key.ToString(scope)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			return nil, nil
+		}
+		key = str
 	}
 
 	v, ok, err := k.getValueValue(scope, key)
@@ -56,7 +77,7 @@ func (k *KeyValue) DescribeFields(ctx value.SchemaContext, scope Scope) ([]schem
 
 	ft, err := value.DescribeFieldType(ctx, v)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewErrEval(value.Position(k.Pos), err)
 	}
 
 	return []schema.Field{
@@ -115,7 +136,7 @@ func (k *KeyValue) getValueValue(scope Scope, key string) (ret value.Value, _ bo
 		return nil, ok, err
 	}
 	if value.IsSimpleKind(v.Kind()) && scope.IsSchema() {
-		return value.NewDefault(v), true, nil
+		return value.NewMatchTypeWithDefault(v), true, nil
 	}
 	return v, true, nil
 }
@@ -186,7 +207,7 @@ func (k *FieldKey) IsMatch() bool {
 func (k *FieldKey) checkKey(key string) error {
 	for _, check := range k.disallowedKeys {
 		if key == check {
-			return errors.NewEvalError(value.Position(k.Pos),
+			return errors.NewErrEval(value.Position(k.Pos),
 				fmt.Errorf("invalid cycle detected in key %s", key))
 		}
 	}
@@ -231,7 +252,7 @@ func (k *FieldKey) Equals(scope Scope, key string) (_ bool, returnErr error) {
 		return false, err
 	} else if v.Kind() == value.UndefinedKind {
 		k.disallowedKeys = append(k.disallowedKeys, key)
-		return false, errors.NewEvalError(value.Position(k.Pos), &ErrKeyUndefined{
+		return false, errors.NewErrEval(value.Position(k.Pos), &ErrKeyUndefined{
 			Key:       key,
 			Undefined: v,
 		})

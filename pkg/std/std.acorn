@@ -1,7 +1,5 @@
 let internal: builtin["__internal"]
 
-any: bool || number || string || object || array || null
-
 itoa: function {
 		args: {
 			a: number
@@ -217,7 +215,7 @@ contains: function {
 	}
 }
 
-//debug: internal.debug
+debug: internal.debug
 
 error: internal.error
 

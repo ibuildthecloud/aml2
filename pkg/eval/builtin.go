@@ -54,9 +54,12 @@ func addStd(data map[string]any) any {
 
 func init() {
 	data := statics()
-	data["std"] = addStd(data)
 	data["len"] = NativeFuncValue(Len)
 	data["keys"] = NativeFuncValue(Keys)
+	data["enum"] = NativeFuncValue(Enum)
+	data["int"] = Int()
+	data["any"] = Any(data)
+	data["std"] = addStd(data)
 
 	Builtin = EmptyScope{}.Push(ScopeData(data))
 }

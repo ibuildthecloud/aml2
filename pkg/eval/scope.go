@@ -11,6 +11,7 @@ type ScopeOption struct {
 	Schema       bool
 	AllowNewKeys bool
 	Default      bool
+	Call         bool
 	Path         string
 	Context      context.Context
 }
@@ -27,12 +28,18 @@ func combine(opts []ScopeOption) (result ScopeOption) {
 		if opt.Default {
 			result.Default = opt.Default
 		}
+		if opt.Call {
+			result.Call = opt.Call
+		}
 		if opt.Path != "" {
 			result.Path = opt.Path
 		}
 		if opt.Context != nil {
 			result.Context = opt.Context
 		}
+	}
+	if result.Context == nil {
+		result.Context = context.Background()
 	}
 	return
 }
@@ -93,11 +100,16 @@ func (e EmptyScope) AllowNewKeys() bool {
 }
 
 type nested struct {
+	depth    int
 	path     string
 	parent   Scope
 	lookup   ScopeLookuper
 	opts     ScopeOption
 	keyCache map[string]value.Value
+}
+
+func (n nested) Depth() int {
+	return n.depth
 }
 
 func (n nested) AllowNewKeys() bool {
@@ -111,6 +123,9 @@ func (n nested) AllowNewKeys() bool {
 }
 
 func (n nested) IsSchema() bool {
+	if n.opts.Call {
+		return false
+	}
 	if n.opts.Default {
 		return false
 	}
@@ -128,6 +143,9 @@ func (n nested) Context() context.Context {
 }
 
 func (n nested) Get(key string) (ret value.Value, ok bool, err error) {
+	if n.depth > MaxCallDepth {
+		return nil, false, fmt.Errorf("exceeded max scope depth %d > %d", n.depth, MaxCallDepth)
+	}
 	if v, ok := n.keyCache[key]; ok {
 		return v, true, nil
 	}
@@ -159,16 +177,21 @@ func scopePush(n Scope, lookup ScopeLookuper, opts ...ScopeOption) Scope {
 	}
 	o := combine(opts)
 	newPath := appendPath(n.Path(), o.Path)
-	if len(newPath) > 500 {
-		panic("stack depth too deep " + fmt.Sprint(len(newPath)))
-	}
-	return nested{
+	newScope := nested{
 		path:     newPath,
 		parent:   n,
 		lookup:   lookup,
 		opts:     o,
 		keyCache: make(map[string]value.Value),
 	}
+
+	ctx := n.Context()
+	depth, _ := ctx.Value(depthKey{}).(int)
+	depth = depth + 1
+
+	newScope.opts.Context = context.WithValue(ctx, depthKey{}, depth)
+	newScope.depth = depth
+	return newScope
 }
 
 func (n nested) Push(lookup ScopeLookuper, opts ...ScopeOption) Scope {

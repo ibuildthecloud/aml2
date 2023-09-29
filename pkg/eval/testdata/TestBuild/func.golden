@@ -1,4 +1,9 @@
 &eval.File{Body: &eval.Struct{
+	Position: eval.Position{
+		Filename: "func.acorn",
+		Line:     1,
+		Column:   1,
+	},
 	Fields: []eval.Field{
 		&eval.KeyValue{
 			Key: eval.FieldKey{
@@ -28,24 +33,40 @@
 					Key: "x",
 				},
 				Args: []eval.Field{
-					&eval.Embedded{Expression: &eval.Lookup{
+					&eval.Embedded{
 						Pos: eval.Position{
 							Filename: "func.acorn",
 							Offset:   5,
 							Line:     1,
 							Column:   6,
 						},
-						Key: "a",
-					}},
-					&eval.Embedded{Expression: &eval.Lookup{
+						Expression: &eval.Lookup{
+							Pos: eval.Position{
+								Filename: "func.acorn",
+								Offset:   5,
+								Line:     1,
+								Column:   6,
+							},
+							Key: "a",
+						},
+					},
+					&eval.Embedded{
 						Pos: eval.Position{
 							Filename: "func.acorn",
 							Offset:   7,
 							Line:     1,
 							Column:   8,
 						},
-						Key: "b",
-					}},
+						Expression: &eval.Lookup{
+							Pos: eval.Position{
+								Filename: "func.acorn",
+								Offset:   7,
+								Line:     1,
+								Column:   8,
+							},
+							Key: "b",
+						},
+					},
 				},
 			},
 			Pos: eval.Position{
@@ -81,24 +102,40 @@
 					Key: "x",
 				},
 				Args: []eval.Field{
-					&eval.Embedded{Expression: &eval.Lookup{
+					&eval.Embedded{
 						Pos: eval.Position{
 							Filename: "func.acorn",
 							Offset:   15,
 							Line:     2,
 							Column:   6,
 						},
-						Key: "a",
-					}},
-					&eval.Embedded{Expression: &eval.Lookup{
+						Expression: &eval.Lookup{
+							Pos: eval.Position{
+								Filename: "func.acorn",
+								Offset:   15,
+								Line:     2,
+								Column:   6,
+							},
+							Key: "a",
+						},
+					},
+					&eval.Embedded{
 						Pos: eval.Position{
 							Filename: "func.acorn",
 							Offset:   18,
 							Line:     2,
 							Column:   9,
 						},
-						Key: "b",
-					}},
+						Expression: &eval.Lookup{
+							Pos: eval.Position{
+								Filename: "func.acorn",
+								Offset:   18,
+								Line:     2,
+								Column:   9,
+							},
+							Key: "b",
+						},
+					},
 					&eval.KeyValue{
 						Key: eval.FieldKey{
 							Key: eval.Value{Value: value.String("c")},

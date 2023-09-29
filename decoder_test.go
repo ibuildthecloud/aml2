@@ -1,6 +1,7 @@
 package aml
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/acorn-io/aml/pkg/schema"
@@ -26,7 +27,7 @@ profiles: baz: two: 2
 func TestUnmarshal(t *testing.T) {
 	data := map[string]any{}
 
-	err := Unmarshal([]byte(testDocument), &data, Option{
+	err := Unmarshal([]byte(testDocument), &data, DecoderOption{
 		PositionalArgs: []any{3},
 		Args: map[string]any{
 			"bar": 2,
@@ -38,6 +39,21 @@ func TestUnmarshal(t *testing.T) {
 	autogold.Expect(map[string]interface{}{
 		"x": 7,
 	}).Equal(t, data)
+}
+
+func TestSchemaValidate(t *testing.T) {
+	out := map[string]any{}
+	err := NewDecoder(strings.NewReader(`
+b: "test"
+`), DecoderOption{
+		Schema: strings.NewReader(`
+a: 1
+b: string
+`),
+	}).Decode(&out)
+
+	require.NoError(t, err)
+	autogold.Expect(map[string]interface{}{"a": 1, "b": "test"}).Equal(t, out)
 }
 
 func TestSchemaUnmarshal(t *testing.T) {
@@ -53,21 +69,21 @@ func TestSchemaUnmarshal(t *testing.T) {
 					Name:        "foo",
 					Description: "Foo\nFoo2",
 					Type: schema.FieldType{
-						Kind:    "number",
+						Kind:    schema.Kind("number"),
 						Default: value.Number("1"),
 					},
 				},
 				{
 					Name: "two",
 					Type: schema.FieldType{
-						Kind:    "number",
+						Kind:    schema.Kind("number"),
 						Default: value.Number("10"),
 					},
 				},
 				{
 					Name: "bar",
 					Type: schema.FieldType{
-						Kind: "number",
+						Kind: schema.Kind("number"),
 						Constraint: []schema.Constraint{
 							{
 								Op:    "<",
@@ -78,11 +94,8 @@ func TestSchemaUnmarshal(t *testing.T) {
 					},
 				},
 			},
+			AllowNewKeys: true,
 		},
-		ProfileNames: schema.Names{
-			{
-				Value: "baz",
-			},
-		},
+		ProfileNames: schema.Names{schema.Name{Name: "baz"}},
 	}).Equal(t, out)
 }

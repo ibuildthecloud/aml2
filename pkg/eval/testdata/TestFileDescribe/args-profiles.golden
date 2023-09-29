@@ -10,15 +10,16 @@
           "default": "la"
         }
       }
-    ]
+    ],
+    "allowNewKeys": true
   },
   "ProfileNames": [
     {
-      "Value": "one",
+      "Name": "one",
       "Description": "Describe one"
     },
     {
-      "Value": "two",
+      "Name": "two",
       "Description": ""
     }
   ]

@@ -5,21 +5,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/acorn-io/aml/pkg/errors"
 	"github.com/acorn-io/aml/pkg/schema"
 	"github.com/acorn-io/aml/pkg/value"
 )
 
 type FunctionDefinition struct {
-	Comments   Comments
-	Pos        Position
-	Body       *Struct
-	ReturnBody bool
-	AssignRoot bool
+	Comments         Comments
+	Pos              Position
+	Body             *Struct
+	ReturnBody       bool
+	AllowUnknownArgs bool
+	AssignRoot       bool
 }
 
 func (f *FunctionDefinition) ToValue(scope Scope) (value.Value, bool, error) {
 	argsFields, bodyFields := f.splitFields()
-	argNames, argsSchema, err := f.toSchema(scope, argsFields, "args", false)
+	argNames, argsSchema, err := f.toSchema(scope, argsFields, "args", f.AllowUnknownArgs)
 	if err != nil {
 		return nil, false, err
 	}
@@ -28,9 +30,11 @@ func (f *FunctionDefinition) ToValue(scope Scope) (value.Value, bool, error) {
 		return nil, false, err
 	}
 	body := &Struct{
-		Fields: bodyFields,
+		Position: f.Pos,
+		Fields:   bodyFields,
 	}
 	return &Function{
+		Pos:            f.Pos,
 		Scope:          scope,
 		Body:           body,
 		ArgsSchema:     argsSchema,
@@ -46,7 +50,8 @@ func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName st
 	s := Schema{
 		AllowNewFields: allowNewFields,
 		Struct: &Struct{
-			Fields: argDefs,
+			Position: f.Pos,
+			Fields:   argDefs,
 		},
 	}
 	v, _, err := s.ToValue(scope)
@@ -55,8 +60,10 @@ func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName st
 	}
 
 	args, ok, err := value.Lookup(v, value.NewValue(fieldName))
-	if err != nil || !ok {
-		return nil, v, err
+	if err != nil {
+		return nil, nil, err
+	} else if !ok {
+		return nil, value.NewClosedObject(), nil
 	}
 
 	obj, err := value.DescribeObject(value.SchemaContext{}, args)
@@ -70,7 +77,7 @@ func (f *FunctionDefinition) toSchema(scope Scope, argDefs []Field, fieldName st
 	keys, err := value.Keys(args)
 	for _, key := range keys {
 		name := Name{
-			Value: key,
+			Name: key,
 		}
 		for _, field := range obj.Fields {
 			if field.Name == key {
@@ -101,6 +108,7 @@ type IsArgumentDefinition interface {
 }
 
 type Function struct {
+	Pos            Position
 	Scope          Scope
 	Body           Expression
 	ArgsSchema     value.Value
@@ -114,7 +122,7 @@ type Function struct {
 type Names []Name
 
 type Name struct {
-	Value       string
+	Name        string
 	Description string
 }
 
@@ -129,44 +137,54 @@ func (c *Function) Kind() value.Kind {
 	return value.FuncKind
 }
 
-func (c *Function) getProfiles(v value.Value) (profiles []value.Value, _ bool, _ error) {
+func (c *Function) getProfiles(v value.Value) (profiles []value.Value, profileStringNames []string, _ bool, _ error) {
 	v, ok, err := value.Lookup(v, value.NewValue("profiles"))
 	if err != nil || !ok {
-		return nil, ok, err
+		return nil, nil, ok, err
 	} else if v.Kind() == value.UndefinedKind {
-		return []value.Value{v}, true, nil
+		return []value.Value{v}, nil, true, nil
 	}
 
 	if v.Kind() != value.ArrayKind {
-		return nil, false, fmt.Errorf("profiles type should be an array")
+		return nil, nil, false, fmt.Errorf("profiles type should be an array")
 	}
 
 	profileNames, err := value.ToValueArray(v)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 
 	for _, profileName := range profileNames {
-		profile, ok, err := value.Lookup(c.ProfilesSchema, profileName)
+		profileNameString, err := value.ToString(profileName)
 		if err != nil {
-			return nil, false, err
+			return nil, nil, false, err
+		}
+		optional := strings.HasSuffix(profileNameString, "?")
+		if optional {
+			profileNameString = strings.TrimSuffix(profileNameString, "?")
+		}
+		profile, ok, err := value.Lookup(c.ProfilesSchema, value.NewValue(profileNameString))
+		if err != nil {
+			return nil, nil, false, err
 		} else if !ok {
-			if strings.HasSuffix(fmt.Sprint(profileName), "?") {
+			if optional {
 				continue
 			}
-			return nil, false, fmt.Errorf("missing profile: %s", profileName)
+			return nil, nil, false, fmt.Errorf("failed to find profile %s", profileName)
 		} else {
+			profileStringNames = append(profileStringNames, profileNameString)
 			profiles = append(profiles, profile)
 		}
 	}
 
-	return profiles, true, nil
+	return profiles, profileStringNames, true, nil
 }
 
 func (c *Function) callArgumentToValue(args []value.CallArgument) (value.Value, error) {
 	var (
-		argValues []value.Value
-		profiles  []value.Value
+		argValues      []value.Value
+		profiles       []value.Value
+		profilesActive []string
 	)
 
 	for i, arg := range args {
@@ -175,13 +193,14 @@ func (c *Function) callArgumentToValue(args []value.CallArgument) (value.Value, 
 				return nil, fmt.Errorf("invalid arg index %d, args len %d", i, len(c.ArgNames))
 			}
 			argValues = append(argValues, value.NewObject(map[string]any{
-				c.ArgNames[i].Value: arg.Value,
+				c.ArgNames[i].Name: arg.Value,
 			}))
 		} else if arg.Value.Kind() != value.ObjectKind {
 			return nil, fmt.Errorf("invalid argument kind %s (index %d)", arg.Value.Kind(), i)
-		} else if profile, profilesSet, err := c.getProfiles(arg.Value); err != nil {
+		} else if profile, profileNames, profilesSet, err := c.getProfiles(arg.Value); err != nil {
 			return nil, err
 		} else if profilesSet {
+			profilesActive = append(profilesActive, profileNames...)
 			profiles = append(profiles, profile...)
 		} else {
 			argValues = append(argValues, arg.Value)
@@ -204,7 +223,24 @@ func (c *Function) callArgumentToValue(args []value.CallArgument) (value.Value, 
 		}
 	}
 
-	return value.Merge(c.ArgsSchema, argValue)
+	validated, err := value.Merge(c.ArgsSchema, argValue)
+	if err != nil {
+		return validated, errors.NewErrEval(value.Position(c.Pos), &ErrInvalidArgument{
+			Err: err,
+		})
+	}
+
+	return value.Merge(validated, value.NewObject(map[string]any{
+		"profiles": profilesActive,
+	}))
+}
+
+type ErrInvalidArgument struct {
+	Err error
+}
+
+func (e *ErrInvalidArgument) Error() string {
+	return fmt.Sprintf("invalid arguments: %v", e.Err)
 }
 
 type rootLookup struct {
@@ -230,7 +266,7 @@ func (c *Function) Call(ctx context.Context, args []value.CallArgument) (value.V
 
 	depth, _ := ctx.Value(depthKey{}).(int)
 	if depth > MaxCallDepth {
-		return nil, false, fmt.Errorf("exceed max call depth %d > %d", depth, MaxCallDepth)
+		return nil, false, fmt.Errorf("exceeded max call depth %d > %d", depth, MaxCallDepth)
 	}
 	ctx = context.WithValue(ctx, depthKey{}, depth+1)
 

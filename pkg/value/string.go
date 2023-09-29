@@ -39,8 +39,7 @@ func (s String) Mat(right Value) (Value, error) {
 	}
 
 	m := re.FindStringIndex(string(s))
-	// regexp must fully match string, not a subset of it
-	return NewValue(m != nil && m[0] == 0 && m[1] == len(rightString)), nil
+	return NewValue(m != nil), nil
 }
 
 func (s String) Nmat(right Value) (Value, error) {
@@ -96,6 +95,5 @@ func (s String) Match(right Value) (bool, error) {
 	}
 
 	m := re.FindStringIndex(rightString)
-	// regexp must fully match string, not a subset of it
-	return m != nil && m[0] == 0 && m[1] == len(rightString), nil
+	return m != nil, nil
 }

@@ -7,6 +7,7 @@ import (
 )
 
 type Array struct {
+	Pos      Position
 	Comments Comments
 	Items    []Expression
 }
@@ -26,14 +27,14 @@ func (a *Array) ToValue(scope Scope) (value.Value, bool, error) {
 			continue
 		}
 		if value.IsSimpleKind(v.Kind()) && scope.IsSchema() {
-			v = value.NewDefault(v)
+			v = value.NewMatchTypeWithDefault(v)
 		}
 		objs = append(objs, v)
 	}
 
 	arr := value.NewArray(objs)
-	if scope.IsSchema() && len(arr) > 0 {
-		return value.ArraySchema(arr), true, nil
+	if scope.IsSchema() {
+		return value.NewArraySchema(arr), true, nil
 	}
 	return arr, true, nil
 }

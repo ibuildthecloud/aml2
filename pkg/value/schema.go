@@ -11,27 +11,6 @@ type DescribeFieldTyper interface {
 }
 
 func DescribeFieldType(ctx SchemaContext, v Value) (result schema.FieldType, _ error) {
-	switch TargetKind(v) {
-	case ObjectKind:
-		objSchema, err := DescribeObject(ctx, v)
-		if err != nil {
-			return result, err
-		}
-		return schema.FieldType{
-			Kind:   schema.ObjectKind,
-			Object: objSchema,
-		}, nil
-	case ArrayKind:
-		arraySchema, err := DescribeArray(ctx, v)
-		if err != nil {
-			return result, err
-		}
-		return schema.FieldType{
-			Kind:  schema.ArrayKind,
-			Array: arraySchema,
-		}, nil
-	}
-
 	if ft, ok := v.(DescribeFieldTyper); ok {
 		return ft.DescribeFieldType(ctx)
 	}

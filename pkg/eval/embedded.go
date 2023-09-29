@@ -53,7 +53,7 @@ func (e *Embedded) ToValueForKey(scope Scope, key string) (value.Value, bool, er
 	}
 	if v.Kind() == value.UndefinedKind {
 		e.disallowedKeys = append(e.disallowedKeys, key)
-		return nil, false, errors.NewEvalError(value.Position(e.Pos), &ErrKeyUndefined{
+		return nil, false, errors.NewErrEval(value.Position(e.Pos), &ErrKeyUndefined{
 			Key:       key,
 			Undefined: v,
 		})
@@ -67,9 +67,12 @@ func (e *Embedded) RequiredKeys(scope Scope) ([]string, error) {
 		return nil, err
 	}
 	if c, ok := v.(interface {
-		GetContract() value.Contract
+		GetContract() (value.Contract, bool)
 	}); ok {
-		return c.GetContract().RequiredKeys()
+		contract, ok := c.GetContract()
+		if ok {
+			return contract.RequiredKeys()
+		}
 	}
 	return nil, nil
 }
@@ -80,9 +83,12 @@ func (e *Embedded) AllKeys(scope Scope) ([]string, error) {
 		return nil, err
 	}
 	if c, ok := v.(interface {
-		GetContract() value.Contract
+		GetContract() (value.Contract, bool)
 	}); ok {
-		return c.GetContract().AllKeys()
+		contract, ok := c.GetContract()
+		if ok {
+			return contract.AllKeys()
+		}
 	}
 	return nil, nil
 }
@@ -93,9 +99,12 @@ func (e *Embedded) ToValueForMatch(scope Scope, key string) (value.Value, bool, 
 		return nil, ok, err
 	}
 	if c, ok := v.(interface {
-		GetContract() value.Contract
+		GetContract() (value.Contract, bool)
 	}); ok {
-		return c.GetContract().LookupValueForKeyPatternMatch(key)
+		contract, ok := c.GetContract()
+		if ok {
+			return contract.LookupValueForKeyPatternMatch(key)
+		}
 	}
 	return nil, false, nil
 }
@@ -115,7 +124,7 @@ func (e *Embedded) checkKeys(v value.Value) error {
 	for _, check := range e.disallowedKeys {
 		for _, key := range keys {
 			if check == key {
-				return errors.NewEvalError(value.Position(e.Pos),
+				return errors.NewErrEval(value.Position(e.Pos),
 					fmt.Errorf("invalid cycle detected in key %s", key))
 			}
 		}
@@ -129,7 +138,7 @@ func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {
 	if err != nil || !ok {
 		return nil, ok, err
 	} else if t := value.TargetKind(v); scope.IsSchema() && t != value.ObjectKind && t != value.UndefinedKind {
-		return nil, false, errors.NewEvalError(value.Position(e.Pos),
+		return nil, false, errors.NewErrEval(value.Position(e.Pos),
 			fmt.Errorf("in schemas embedded expressions must evaluate to kind object, not %s", t))
 	}
 	if len(e.disallowedKeys) > 0 {
@@ -138,7 +147,7 @@ func (e *Embedded) ToValue(scope Scope) (value.Value, bool, error) {
 			for _, check := range e.disallowedKeys {
 				for _, key := range keys {
 					if check == key {
-						return nil, false, errors.NewEvalError(value.Position(e.Pos),
+						return nil, false, errors.NewErrEval(value.Position(e.Pos),
 							fmt.Errorf("invalid cycle detected in key %s", key))
 					}
 				}

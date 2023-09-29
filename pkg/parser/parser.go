@@ -481,13 +481,8 @@ func (p *parser) safePos(pos token.Pos) (res token.Pos) {
 func (p *parser) parseIdent() *ast.Ident {
 	c := p.openComments()
 	pos := p.pos
-	name := "_"
-	if p.tok == token.IDENT {
-		name = p.lit
-		p.next()
-	} else {
-		p.expect(token.IDENT) // use expect() error handling
-	}
+	name := p.lit
+	p.expect(token.IDENT) // use expect() error handling
 	ident := &ast.Ident{NamePos: pos, Name: name}
 	c.closeNode(p, ident)
 	return ident
@@ -541,6 +536,7 @@ func (p *parser) badExpr(fromPos token.Pos) (expr ast.Expr) {
 	c := p.openComments()
 	defer func() { c.closeNode(p, expr) }()
 
+	p.errf(fromPos, "invalid expression")
 	return &ast.BadExpr{From: fromPos, To: p.pos}
 }
 
@@ -827,11 +823,10 @@ func (p *parser) checkAndParseValidLabel(expr ast.Expr) (matchPos token.Pos, _ a
 		return token.NoPos, nil, false
 	} else if ident, ok := label.(*ast.Ident); ok {
 		if ident.Name == "match" {
-			if p.mode&allowMatchMode == 0 {
-				p.errf(ident.Pos(), "match is not allowed as a key, reserved for possible future use")
-			}
 			expr := p.parseExpr()
 			if str, ok := expr.(*ast.BasicLit); ok && str.Kind == token.STRING {
+				return ident.Pos(), str, true
+			} else if str, ok := expr.(*ast.Interpolation); ok {
 				return ident.Pos(), str, true
 			}
 			p.errf(ident.End(), "expected string after match")

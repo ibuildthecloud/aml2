@@ -53,6 +53,7 @@ func fileToObject(file *ast.File) (*Struct, error) {
 	}
 
 	return &Struct{
+		Position: pos(file.Pos()),
 		Comments: getComments(file),
 		Fields:   fields,
 	}, err
@@ -226,13 +227,13 @@ func forClauseToFor(comp *ast.ForClause, expr Expression, merge bool) (*For, err
 	if comp.Key != nil {
 		result.Key, err = value.Unquote(comp.Key.Name)
 		if err != nil {
-			return nil, errors.NewEvalError(posValue(comp.Key.Pos()), err)
+			return nil, errors.NewErrEval(posValue(comp.Key.Pos()), err)
 		}
 	}
 
 	result.Value, err = value.Unquote(comp.Value.Name)
 	if err != nil {
-		return nil, errors.NewEvalError(posValue(comp.Value.Pos()), err)
+		return nil, errors.NewErrEval(posValue(comp.Value.Pos()), err)
 	}
 
 	result.Collection, err = exprToExpression(comp.Source)
@@ -252,7 +253,7 @@ func basicListToValue(lit *ast.BasicLit) (Expression, error) {
 	case token.STRING:
 		s, err := value.Unquote(lit.Value)
 		if err != nil {
-			return nil, errors.NewEvalError(posValue(lit.Pos()), err)
+			return nil, errors.NewErrEval(posValue(lit.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),
@@ -291,6 +292,7 @@ func structToExpression(s *ast.StructLit) (*Struct, error) {
 		return nil, err
 	}
 	return &Struct{
+		Position: pos(s.Pos()),
 		Comments: getComments(s),
 		Fields:   fields,
 	}, err
@@ -302,6 +304,7 @@ func listToExpression(list *ast.ListLit) (Expression, error) {
 		return nil, err
 	}
 	return &Array{
+		Pos:      pos(list.Lbrack),
 		Comments: getComments(list),
 		Items:    exprs,
 	}, nil
@@ -374,7 +377,7 @@ func parensToExpression(parens *ast.ParenExpr) (Expression, error) {
 func identToExpression(ident *ast.Ident) (Expression, error) {
 	key, err := value.Unquote(ident.Name)
 	if err != nil {
-		return nil, errors.NewEvalError(posValue(ident.Pos()), err)
+		return nil, errors.NewErrEval(posValue(ident.Pos()), err)
 	}
 	return &Lookup{
 		Comments: getComments(ident),
@@ -384,7 +387,7 @@ func identToExpression(ident *ast.Ident) (Expression, error) {
 }
 
 func selectorToExpression(sel *ast.SelectorExpr) (Expression, error) {
-	key, err := labelToExpression(sel.Sel)
+	key, _, err := labelToExpression(sel.Sel)
 	if err != nil {
 		return nil, err
 	}
@@ -527,11 +530,18 @@ func exprToExpression(expr ast.Expr) (Expression, error) {
 }
 
 func labelToKey(label ast.Label, match bool) (FieldKey, error) {
-	expr, err := labelToExpression(label)
+	expr, stringKey, err := labelToExpression(label)
 	if err != nil {
 		return FieldKey{}, err
 	}
-	if match {
+	if stringKey && !match {
+		return FieldKey{
+			Match: &Value{
+				Value: value.NewValue(".*"),
+			},
+			Pos: pos(label.Pos()),
+		}, nil
+	} else if match {
 		return FieldKey{
 			Match: expr,
 			Pos:   pos(label.Pos()),
@@ -543,31 +553,32 @@ func labelToKey(label ast.Label, match bool) (FieldKey, error) {
 	}, nil
 }
 
-func labelToExpression(expr ast.Label) (Expression, error) {
+func labelToExpression(expr ast.Label) (_ Expression, isStringIdent bool, _ error) {
 	if expr == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	switch n := expr.(type) {
 	case *ast.BasicLit:
 		s, err := value.Unquote(n.Value)
 		if err != nil {
-			return nil, errors.NewEvalError(posValue(n.Pos()), err)
+			return nil, false, errors.NewErrEval(posValue(n.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),
-		}, nil
+		}, false, nil
 	case *ast.Ident:
 		s, err := value.Unquote(n.Name)
 		if err != nil {
-			return nil, errors.NewEvalError(posValue(n.Pos()), err)
+			return nil, false, errors.NewErrEval(posValue(n.Pos()), err)
 		}
 		return Value{
 			Value: value.NewValue(s),
-		}, nil
+		}, n.Name == "string", nil
 	case *ast.Interpolation:
-		return interpolationToExpression(n)
+		i, err := interpolationToExpression(n)
+		return i, false, err
 	default:
-		return nil, NewErrUnknownError(n)
+		return nil, false, NewErrUnknownError(n)
 	}
 }

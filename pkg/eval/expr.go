@@ -61,7 +61,10 @@ func (o *Op) ToValue(scope Scope) (value.Value, bool, error) {
 	}
 
 	newValue, err := value.BinaryOperation(o.Operator, left, right)
-	return newValue, true, err
+	if err != nil {
+		return nil, false, errors.NewErrEval(value.Position(o.Pos), err)
+	}
+	return newValue, true, nil
 }
 
 type Lookup struct {
@@ -91,9 +94,9 @@ func (l *Lookup) ToValue(scope Scope) (value.Value, bool, error) {
 
 func newNotFound(pos Position, key any, err error) error {
 	if err != nil {
-		return errors.NewEvalError(value.Position(pos), fmt.Errorf("key not found \"%s\": %w", key, err))
+		return errors.NewErrEval(value.Position(pos), fmt.Errorf("key not found \"%s\": %w", key, err))
 	}
-	return errors.NewEvalError(value.Position(pos), fmt.Errorf("key not found \"%s\"", key))
+	return errors.NewErrEval(value.Position(pos), fmt.Errorf("key not found \"%s\"", key))
 }
 
 type Selector struct {
@@ -105,7 +108,7 @@ type Selector struct {
 
 func (s *Selector) ToValue(scope Scope) (_ value.Value, _ bool, retErr error) {
 	defer func() {
-		retErr = errors.NewEvalError(value.Position(s.Pos), retErr)
+		retErr = errors.NewErrEval(value.Position(s.Pos), retErr)
 	}()
 
 	key, ok, err := s.Key.ToValue(scope)
@@ -205,10 +208,20 @@ type Call struct {
 }
 
 func (c *Call) ToValue(scope Scope) (value.Value, bool, error) {
+	select {
+	case <-scope.Context().Done():
+		return nil, false, scope.Context().Err()
+	default:
+	}
+
 	v, ok, err := c.Func.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
+
+	scope = scope.Push(nil, ScopeOption{
+		Call: true,
+	})
 
 	var args []value.CallArgument
 	for _, field := range c.Args {
@@ -228,7 +241,7 @@ func (c *Call) ToValue(scope Scope) (value.Value, bool, error) {
 
 	v, ok, err = value.Call(scope.Context(), v, args...)
 	if err != nil {
-		return v, ok, errors.NewEvalError(value.Position(c.Pos), err)
+		return v, ok, errors.NewErrEval(value.Position(c.Pos), err)
 	}
 	return v, ok, err
 }
@@ -285,12 +298,19 @@ func (i *Interpolation) ToValue(scope Scope) (value.Value, bool, error) {
 			if val.Kind() == value.UndefinedKind {
 				return val, true, nil
 			}
-			nv, ok, err := value.NativeValue(val)
+
+			// This might be a schema val which don't over NativeValues, but it might have a default which
+			// does, so resolve to default
+			defVal, ok, err := value.DefaultValue(val)
 			if err != nil {
 				return nil, false, err
+			} else if ok {
+				val = defVal
 			}
-			if !ok {
-				continue
+
+			nv, ok, err := value.NativeValue(val)
+			if err != nil || !ok {
+				return nil, ok, err
 			}
 			result = append(result, value.Escape(fmt.Sprint(nv)))
 		}
@@ -307,8 +327,6 @@ type For struct {
 	Body       Expression
 	Merge      bool
 	Position   Position
-
-	evaluating bool
 }
 
 type entry struct {
@@ -358,17 +376,13 @@ func toList(v value.Value) (result []entry, _ error) {
 }
 
 func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
-	//if f.evaluating {
-	//	return value.Undefined{
-	//		Pos: value.Position(f.Position),
-	//	}, true, nil
-	//}
-	//f.evaluating = true
-	//defer func() { f.evaluating = false }()
-
 	collection, ok, err := f.Collection.ToValue(scope)
 	if err != nil || !ok {
 		return nil, ok, err
+	}
+
+	if undef := value.IsUndefined(collection); undef != nil {
+		return undef, true, nil
 	}
 
 	list, err := toList(collection)
@@ -381,7 +395,7 @@ func (f *For) ToValue(scope Scope) (value.Value, bool, error) {
 	for _, item := range list {
 		select {
 		case <-scope.Context().Done():
-			return nil, false, errors.NewEvalError(value.Position(f.Position),
+			return nil, false, errors.NewErrEval(value.Position(f.Position),
 				fmt.Errorf("aborting loop: %w", scope.Context().Err()))
 		default:
 		}

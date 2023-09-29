@@ -1,3 +1,5 @@
+// +k8s:deepcopy-gen=package
+
 package schema
 
 type File struct {
@@ -8,9 +10,11 @@ type File struct {
 type Names []Name
 
 type Name struct {
-	Value       string
+	Name        string
 	Description string
 }
+
+// +k8s:deepcopy-gen=false
 
 type Schema interface {
 	GetFields() []Field

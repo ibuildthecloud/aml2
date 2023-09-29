@@ -1,4 +1,10 @@
 &eval.File{Body: &eval.Struct{
+	Position: eval.Position{
+		Filename: "fields.acorn",
+		Offset:   41,
+		Line:     5,
+		Column:   1,
+	},
 	Comments: eval.Comments{Comments: [][]string{
 		{
 			"doc header",
@@ -114,24 +120,32 @@
 					Column:   1,
 				},
 			},
-			Value: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
-				Key: eval.FieldKey{
-					Key: eval.Value{Value: value.String("obj")},
+			Value: &eval.Struct{
+				Position: eval.Position{
+					Filename: "fields.acorn",
+					Offset:   168,
+					Line:     15,
+					Column:   9,
+				},
+				Fields: []eval.Field{&eval.KeyValue{
+					Key: eval.FieldKey{
+						Key: eval.Value{Value: value.String("obj")},
+						Pos: eval.Position{
+							Filename: "fields.acorn",
+							Offset:   168,
+							Line:     15,
+							Column:   9,
+						},
+					},
+					Value: eval.Value{Value: value.Number("1")},
 					Pos: eval.Position{
 						Filename: "fields.acorn",
 						Offset:   168,
 						Line:     15,
 						Column:   9,
 					},
-				},
-				Value: eval.Value{Value: value.Number("1")},
-				Pos: eval.Position{
-					Filename: "fields.acorn",
-					Offset:   168,
-					Line:     15,
-					Column:   9,
-				},
-			}}},
+				}},
+			},
 			Pos: eval.Position{
 				Filename: "fields.acorn",
 				Offset:   160,
@@ -150,10 +164,23 @@
 					Column:   1,
 				},
 			},
-			Value: &eval.Array{Items: []eval.Expression{
-				eval.Value{Value: value.Number("2")},
-				&eval.Struct{},
-			}},
+			Value: &eval.Array{
+				Pos: eval.Position{
+					Filename: "fields.acorn",
+					Offset:   191,
+					Line:     17,
+					Column:   7,
+				},
+				Items: []eval.Expression{
+					eval.Value{Value: value.Number("2")},
+					&eval.Struct{Position: eval.Position{
+						Filename: "fields.acorn",
+						Offset:   195,
+						Line:     17,
+						Column:   11,
+					}},
+				},
+			},
 			Pos: eval.Position{
 				Filename: "fields.acorn",
 				Offset:   185,
@@ -162,29 +189,51 @@
 			},
 		},
 		&eval.Embedded{
+			Pos: eval.Position{
+				Filename: "fields.acorn",
+				Offset:   223,
+				Line:     20,
+				Column:   1,
+			},
 			Comments: eval.Comments{Comments: [][]string{{"comment on embedded"}}},
-			Expression: &eval.Struct{Fields: []eval.Field{&eval.KeyValue{
-				Comments: eval.Comments{Comments: [][]string{{
-					"comment on field",
-				}}},
-				Key: eval.FieldKey{
-					Key: eval.Value{Value: value.String("x")},
+			Expression: &eval.Struct{
+				Position: eval.Position{
+					Filename: "fields.acorn",
+					Offset:   223,
+					Line:     20,
+					Column:   1,
+				},
+				Fields: []eval.Field{&eval.KeyValue{
+					Comments: eval.Comments{Comments: [][]string{{
+						"comment on field",
+					}}},
+					Key: eval.FieldKey{
+						Key: eval.Value{Value: value.String("x")},
+						Pos: eval.Position{
+							Filename: "fields.acorn",
+							Offset:   247,
+							Line:     22,
+							Column:   2,
+						},
+					},
+					Value: eval.Value{Value: value.Number("1")},
 					Pos: eval.Position{
 						Filename: "fields.acorn",
 						Offset:   247,
 						Line:     22,
 						Column:   2,
 					},
-				},
-				Value: eval.Value{Value: value.Number("1")},
-				Pos: eval.Position{
-					Filename: "fields.acorn",
-					Offset:   247,
-					Line:     22,
-					Column:   2,
-				},
-			}}},
+				}},
+			},
 		},
-		&eval.Embedded{Expression: eval.Value{Value: value.Number("4")}},
+		&eval.Embedded{
+			Pos: eval.Position{
+				Filename: "fields.acorn",
+				Offset:   254,
+				Line:     24,
+				Column:   1,
+			},
+			Expression: eval.Value{Value: value.Number("4")},
+		},
 	},
 }}

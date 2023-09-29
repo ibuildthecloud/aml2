@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/acorn-io/aml/pkg/token"
 	"github.com/acorn-io/aml/pkg/value"
@@ -108,25 +109,66 @@ func approximateEqual(a, b *ParserError) bool {
 		aPos.Column() == bPos.Column()
 }
 
-type EvalError struct {
+type ErrEval struct {
 	Position value.Position
 	Err      error
 }
 
-func NewEvalError(pos value.Position, err error) error {
+func NewErrEval(pos value.Position, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &EvalError{
+	return &ErrEval{
 		Position: pos,
 		Err:      err,
 	}
 }
 
-func (e *EvalError) Unwrap() error {
+func (e *ErrEval) Unwrap() error {
 	return e.Err
 }
 
-func (e *EvalError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Err.Error(), e.Position)
+func printPath(pos []value.Position) string {
+	buf := strings.Builder{}
+	end := pos[len(pos)-1]
+	last := pos[len(pos)-1]
+	for i := len(pos) - 2; i >= 0; i-- {
+		next := pos[i]
+		if next == end {
+			break
+		} else if last == next {
+			continue
+		}
+		if buf.Len() > 0 {
+			buf.WriteString("->")
+		}
+		if last.Filename != next.Filename {
+			buf.WriteString(next.Filename)
+		}
+		buf.WriteString(fmt.Sprintf("%d:%d", next.Line, next.Column))
+	}
+
+	return buf.String()
+}
+
+func (e *ErrEval) Error() string {
+	var (
+		pos  = []value.Position{e.Position}
+		last = e
+	)
+
+	var cur error = e
+	for cur != nil {
+		cur = errors.Unwrap(cur)
+		if e, ok := cur.(*ErrEval); ok {
+			pos = append(pos, e.Position)
+			last = e
+		}
+	}
+
+	backtrace := printPath(pos)
+	if len(backtrace) > 0 {
+		return fmt.Sprintf("%s: %s (backtrace %s)", last.Err.Error(), last.Position, printPath(pos))
+	}
+	return fmt.Sprintf("%s: %s", last.Err.Error(), last.Position)
 }

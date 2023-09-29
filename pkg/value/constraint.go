@@ -24,6 +24,31 @@ func (c Constraints) Check(left Value) error {
 	return nil
 }
 
+type CustomConstraint struct {
+	CustomDescription string
+	Checker           func(left Value) error
+}
+
+func (c *CustomConstraint) Check(left Value) error {
+	return c.Checker(left)
+}
+
+func (c *CustomConstraint) Description() string {
+	return c.CustomDescription
+}
+
+func (c *CustomConstraint) OpString() string {
+	return "custom"
+}
+
+func (c *CustomConstraint) LeftNative() (any, bool, error) {
+	return nil, false, nil
+}
+
+func (c *CustomConstraint) RightNative() (any, bool, error) {
+	return nil, false, nil
+}
+
 type Constraint struct {
 	Op    string
 	Right Value
@@ -45,7 +70,26 @@ func (c *Constraint) RightNative() (any, bool, error) {
 	return NativeValue(c.Right)
 }
 
+func toConcrete(val Value) (Value, error) {
+	def, ok, err := DefaultValue(val)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return def, nil
+	}
+	return val, nil
+}
+
 func (c *Constraint) check(op Operator, left, right Value) error {
+	left, err := toConcrete(left)
+	if err != nil {
+		return err
+	}
+	right, err = toConcrete(right)
+	if err != nil {
+		return err
+	}
 	v, err := BinaryOperation(op, left, right)
 	if err != nil {
 		return err

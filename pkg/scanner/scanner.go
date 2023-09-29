@@ -226,15 +226,7 @@ func (s *Scanner) scanFieldIdentifier() string {
 		s.next()
 		return string(s.src[offs:s.offset])
 	}
-	for isLetter(s.ch) || isDigit(s.ch) {
-		s.next()
-	}
-	return string(s.src[offs:s.offset])
-}
-
-func (s *Scanner) scanIdentifier() string {
-	offs := s.offset
-	for isLetter(s.ch) || isDigit(s.ch) {
+	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '_' {
 		s.next()
 	}
 	return string(s.src[offs:s.offset])

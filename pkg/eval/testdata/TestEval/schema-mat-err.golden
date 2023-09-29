@@ -1,2 +1,1 @@
-`schema violation .a: unmatched constraint bye =~ hi.*
-unmatched constraint bye =~ hi.*`
+"schema violation .a: unmatched constraint bye =~ hi.* (schema-mat-err.acorn:1:8)"

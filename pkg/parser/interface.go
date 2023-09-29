@@ -33,11 +33,6 @@ var (
 	traceOpt        = func(p *parser) {
 		p.mode |= traceMode
 	}
-
-	AllowMatch Option = allowMatch
-	allowMatch        = func(p *parser) {
-		p.mode |= allowMatchMode
-	}
 )
 
 // A mode value is a set of flags (or 0).
@@ -47,8 +42,7 @@ type mode uint
 
 const (
 	parseCommentsMode mode = 1 << iota // parse comments and add them to AST
-	allowMatchMode
-	traceMode // print a trace of parsed productions
+	traceMode                          // print a trace of parsed productions
 )
 
 func ParseFile(filename string, src io.Reader, mode ...Option) (f *ast.File, retErr error) {

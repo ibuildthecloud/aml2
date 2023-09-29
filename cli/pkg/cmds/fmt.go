@@ -17,8 +17,9 @@ type Fmt struct {
 
 func NewFmt(aml *AML) *cobra.Command {
 	return cmd.Command(&Fmt{aml: aml}, cobra.Command{
-		Use:   "fmt [flags] [FILE]",
-		Short: "Formats a single file, writing the output to the source file if changed",
+		Use:           "fmt [flags] [FILE]",
+		Short:         "Formats a single file, writing the output to the source file if changed",
+		SilenceErrors: true,
 	})
 }
 

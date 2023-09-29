@@ -1,1 +1,1 @@
-"missing required key(s): [Schema.foo]"
+"missing required key(s): [Schema.foo] (schema-missingfield.acorn:1:16)"
